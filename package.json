@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "start": "NODE_ENV=production node ./bin/www",
-    "devStart": "NODE_ENV=development DEBUG=reddit-clone-api:* nodemon ./bin/www"
+    "devStart": "NODE_ENV=development DEBUG=reddit-clone-api:* nodemon ./bin/www",
+    "test": "NODE_ENV=testing jest",
+    "testDetect": "NODE_ENV=testing jest --detectOpenHandles"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +25,9 @@
     "passport-jwt": "^4.0.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.19"
+    "jest": "^29.0.1",
+    "mongodb-memory-server": "^8.9.0",
+    "nodemon": "^2.0.19",
+    "supertest": "^6.2.4"
   }
 }
