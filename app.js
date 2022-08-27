@@ -7,7 +7,7 @@ const routes = require('./routes/index');
 
 const app = express();
 
-require('./mongoConfig');
+process.env.NODE_ENV === 'testing' ? require('./mongoConfigTesting')() : require('./mongoConfig');
 
 app.use(logger('dev'));
 app.use(express.json());
@@ -20,8 +20,8 @@ app.use((req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  const message = err.message;
-  if (req.app.get('env') === 'development') {
+  const message = req.app.get('env') === 'production' ? 'Oops, an error occured' : err.message;
+  if (req.app.get('env') !== 'production') {
     console.log(err);
   }
 
