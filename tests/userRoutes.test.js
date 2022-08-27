@@ -209,3 +209,53 @@ describe('POST /user', () => {
     })
   })
 });
+
+describe('GET /user/:username', () => {
+  describe('Given valid username', () => {
+    test('Responds with 200 status code', async () => {
+      const response = await request(app).get('/api/v1/user/tester0');
+      expect(response.statusCode).toBe(200);
+    });
+
+    test('Responds with json in content-type header', async () => {
+      const response = await request(app).get('/api/v1/user/tester0');
+      expect(response.headers['content-type']).toEqual(expect.stringContaining('json'));
+    });
+
+    test('Responds with user information', async () => {
+      const response = await request(app).get('/api/v1/user/tester0');
+      expect(response.body.username).toBeDefined();
+      expect(response.body.post_score).toBeDefined();
+      expect(response.body.comment_score).toBeDefined();
+      expect(response.body.admin).toBeDefined();
+      expect(response.body.moderator).toBeDefined();
+      expect(response.body.posts).toBeDefined();
+      expect(response.body.comments).toBeDefined();
+    });
+
+    test('User information is valid', async () => {
+      const response = await request(app).get('/api/v1/user/tester0');
+      const user = await User.findOne({ username: 'tester0' });
+      expect(response.body.username).toEqual(user.username);
+      expect(response.body.post_score).toEqual(user.post_score);
+      expect(response.body.comment_score).toEqual(user.comment_score);
+      expect(response.body.admin).toEqual(user.admin);
+      expect(response.body.moderator).toEqual(user.moderator);
+      expect(response.body.posts).toEqual(user.posts);
+      expect(response.body.comments).toEqual(user.comments);
+    });
+
+  });
+
+  describe('Given invalid username', () => {
+    test('Responds with 404 status', async () => {
+      const response = await request(app).get('/api/v1/user/invalid');
+      expect(response.statusCode).toBe(404);
+    });
+
+    test('Responds with correct error message', async () => {
+      const response = await request(app).get('/api/v1/user/invalid');
+      expect(response.body.message).toEqual('Not Found');
+    });
+  })
+});

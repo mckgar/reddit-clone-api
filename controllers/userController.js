@@ -1,5 +1,5 @@
 const User = require('../models/user');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -58,5 +58,27 @@ exports.create_user = [
     } catch (err) {
       next(err)
     }
+  }
+];
+
+exports.get_user = [
+  param('username')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    const user = await User.findOne({ username: req.params.username });
+    if (user) {
+      res.status(200).json({
+        username: user.username,
+        post_score: user.post_score,
+        comment_score: user.comment_score,
+        admin: user.admin,
+        moderator: user.moderator,
+        posts: user.posts,
+        comments: user.comments
+      });
+      return;
+    }
+    next();
   }
 ];
