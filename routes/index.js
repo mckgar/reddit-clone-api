@@ -1,12 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const userRoute = require('./user');
 
-router.get('/', (req, res, next) => {
-  res.status(200).json(
-    {
-      message: 'Server up and running'
-    }
-  )
-});
+router.use('/user', userRoute);
 
 module.exports = router;
