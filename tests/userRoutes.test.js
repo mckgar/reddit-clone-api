@@ -574,9 +574,13 @@ describe('PUT /user/:username', () => {
   describe('Given invalid user', () => {
     test('Responds with 404 status code', async () => {
       const response = await request(app)
-            .put('/api/v1/user/doesnotexist')
-            .set('Authorization', `Bearer ${adminCred}`);
-          expect(response.statusCode).toBe(404);
+        .put('/api/v1/user/doesnotexist')
+        .set('Authorization', `Bearer ${adminCred}`);
+      expect(response.statusCode).toBe(404);
     });
   });
+});
+
+afterAll(async () => {
+  await require('../mongoConfigTesting').closeServer();
 });

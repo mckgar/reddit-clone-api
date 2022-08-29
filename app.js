@@ -7,7 +7,7 @@ const routes = require('./routes/index');
 
 const app = express();
 
-process.env.NODE_ENV === 'testing' ? require('./mongoConfigTesting')() : require('./mongoConfig');
+process.env.NODE_ENV === 'testing' ? require('./mongoConfigTesting').initializeMongoServer() : require('./mongoConfig');
 
 app.use(logger('dev'));
 app.use(express.json());
