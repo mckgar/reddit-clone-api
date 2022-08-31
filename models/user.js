@@ -77,7 +77,11 @@ const UserSchema = mongoose.Schema(
     chats: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Chat'
-    }]
+    }],
+    deleted: {
+      type: Boolean,
+      default: false
+    }
   }
 );
 
