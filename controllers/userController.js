@@ -1,8 +1,11 @@
 const User = require('../models/user');
+const Post = require('../models/post');
+const Comment = require('../models/comment');
 const { body, param, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
+const { default: mongoose } = require('mongoose');
 require('../passport');
 
 exports.create_user = [
@@ -169,10 +172,280 @@ exports.update_user = [
         res.sendStatus(200);
         return;
       }
-      res.sendStatus(404);
+      next();
       return;
     } catch (err) {
       next(err)
     }
   }
 ];
+
+exports.create_user_post = [
+  passport.authenticate('jwt', { session: false }),
+  param('username')
+    .trim()
+    .escape(),
+  body('title')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Title is required')
+    .escape(),
+  body('content')
+    .trim()
+    .escape()
+    .isLength({ max: 10000 })
+    .withMessage('Content is too long'),
+  async (req, res, next) => {
+    if (req.user.username !== req.params.username) {
+      res.sendStatus(403);
+      return;
+    }
+    const user = await User.findOne({ username: req.params.username });
+    if (user) {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json(
+          {
+            errors: errors.array()
+          }
+        );
+        return;
+      }
+      try {
+        const post = new Post({
+          title: req.body.title,
+          content: req.body.content,
+          author: req.user.id,
+          user_post: true
+
+        });
+        const saved = await post.save();
+        await User.findOneAndUpdate(
+          { username: req.params.username },
+          { $push: { posts: saved._id } }
+        );
+        res.status(201).json({
+          post_id: saved._id
+        });
+        return;
+      } catch (err) {
+        next(err);
+      }
+    }
+    next();
+  }
+];
+
+exports.get_user_post = [
+  param('username')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    try {
+      const user = await User.findOne({ username: req.params.username }).populate('posts');
+      if (user && !user.deleted) {
+        const post = user.posts.filter(post =>
+          post._id.toString() === req.params.postid
+        )[0];
+        if (post) {
+          res.status(200).json(
+            {
+              user: {
+                username: req.params.username,
+                post_score: user.post_score,
+                comment_score: user.comment_score,
+                admin: user.admin,
+                moderator: user.moderator
+              },
+              post: {
+                title: post.title,
+                content: post.content,
+                author: post.author,
+                score: post.score,
+                comments: post.comments,
+                date_posted: post.date_posted,
+                date_edited: post.date_edited
+              }
+            }
+          );
+          return;
+        }
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.update_user_post = [
+  passport.authenticate('jwt', { session: false }),
+  param('username')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  body('content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Content is required')
+    .escape()
+    .isLength({ max: 10000 })
+    .withMessage('Content is too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    if (req.user.username !== req.params.username && !req.user.admin) {
+      res.sendStatus(403);
+      return;
+    }
+    const user = await User.findOne({ username: req.params.username });
+    if (user) {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json(
+          {
+            errors: errors.array()
+          }
+        );
+        return;
+      }
+      try {
+        const updates = {};
+        updates.content = req.body.content;
+        updates.date_edited = Date.now();
+        const post = await Post.findByIdAndUpdate(req.params.postid, updates);
+        if (post) {
+          res.sendStatus(200);
+          return;
+        }
+      } catch (err) {
+        next(err);
+      }
+    }
+    next();
+    return;
+  }
+];
+
+exports.delete_user_post = [
+  passport.authenticate('jwt', { session: false }),
+  param('username')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    if (req.user.username !== req.params.username && !req.user.admin) {
+      res.sendStatus(403);
+      return;
+    }
+    const user = await User.findOne({ username: req.params.username });
+    if (user) {
+      try {
+        const deleteUpdate = {
+          author: null
+        };
+        if (req.user.username === req.params.username) {
+          deleteUpdate.title = '[Deleted by user]';
+          deleteUpdate.content = '[Deleted by user]';
+        } else {
+          deleteUpdate.title = '[Removed by admin]';
+          deleteUpdate.content = '[Removed by admin]';
+        }
+        const post = await Post.findByIdAndUpdate(req.params.postid, deleteUpdate);
+        await User.findOneAndUpdate(
+          { username: req.params.username },
+          { $pull: { posts: req.params.postid } }
+        );
+        if (post) {
+          res.sendStatus(200);
+          return;
+        }
+      } catch (err) {
+        next(err);
+      }
+    }
+    next();
+    return;
+  }
+];
+
+exports.create_comment = [
+  passport.authenticate('jwt', { session: false }),
+  param('username')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  body('content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Content is required')
+    .escape()
+    .isLength({ max: 10000 })
+    .withMessage('Content is too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    try {
+      const originalPoster = await User.findOne({ username: req.params.username });
+      if (!originalPoster || originalPoster.deleted) {
+        next();
+        return;
+      }
+      const post = await Post.findById(req.params.postid);
+      if (post) {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          res.status(400).json(
+            {
+              errors: errors.array()
+            }
+          );
+          return;
+        }
+        const comment = await new Comment(
+          {
+            content: req.body.content,
+            author: req.user.id,
+            post_parent: req.params.post_id
+          }
+        ).save();
+        await Post.findByIdAndUpdate(
+          req.params.postid,
+          { $push: { comments: comment._id } }
+        );
+        await User.findOneAndUpdate(
+          { username: req.user.username },
+          { $push: { comments: comment._id } }
+        )
+        res.sendStatus(201);
+        return;
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+
