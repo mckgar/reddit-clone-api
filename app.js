@@ -21,7 +21,7 @@ app.use((req, res, next) => {
 
 app.use((err, req, res, next) => {
   const message = req.app.get('env') === 'production' ? 'Oops, an error occured' : err.message;
-  if (req.app.get('env') !== 'production') {
+  if (req.app.get('env') !== 'production' && err.status !== 404) {
     console.log(err);
   }
 
