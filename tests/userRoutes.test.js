@@ -1260,6 +1260,332 @@ describe('POST /user/:username/:postid', () => {
   });
 });
 
+describe('PUT /user/:username/:postid/:commentid', () => {
+  describe('Given valid username', () => {
+    describe('Given valid credentials', () => {
+      describe('Given valid post', () => {
+        describe('Given valid comment', () => {
+          describe('Given valid info', () => {
+            test('Responds with 200 status code', async () => {
+              const response = await request(app)
+                .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                .send({ content: 'Updated' })
+                .set('Authorization', `Bearer ${posterCred}`);
+              expect(response.statusCode).toBe(200);
+            });
+
+            test('Comment content is successfully updated', async () => {
+              await request(app)
+                .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                .send({ content: 'I Have Been Updated' })
+                .set('Authorization', `Bearer ${posterCred}`);
+              const comment = await Comment.findById(updateUserPostComment);
+              expect(comment.content).toEqual('I Have Been Updated');
+              expect(comment.date_edited !== comment.date_posted).toBeTruthy();
+            });
+          });
+
+          describe('Given invalid info', () => {
+            test('Responds with 400 status code', async () => {
+              const data = [{}, { content: '' }, { content: null }];
+              for (const body of data) {
+                const response = await request(app)
+                  .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                  .send(body)
+                  .set('Authorization', `Bearer ${posterCred}`);
+                expect(response.statusCode).toBe(400);
+              }
+            });
+          });
+        });
+
+        describe('Given invalid comment', () => {
+          test('Responds with 404 status code', async () => {
+            const response = await request(app)
+              .put(`/api/v1/user/prolific/${stableUserPost}/${doesNotExistPostComment}`)
+              .send({ content: 'Updated' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(404);
+          });
+        });
+      });
+
+      describe('Given invalid post', () => {
+        test('Responds with 404 status code', async () => {
+          const response = await request(app)
+            .put(`/api/v1/user/prolific/${doesNotExistPost}/${stableUserPostComment}`)
+            .send({ content: 'Updated' })
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response.statusCode).toBe(404);
+        });
+      });
+    });
+
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+          .send({ content: 'Updated' })
+          .set('Authorization', `Bearer ${badCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+          .send({ content: 'Updated' });
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+
+  describe('Given invalid username', () => {
+    test('Responds with 404 status code', async () => {
+      const response = await request(app)
+        .put(`/api/v1/user/doesnotexist/${stableUserPost}/${updateUserPostComment}`)
+        .send({ content: 'Updated' })
+        .set('Authorization', `Bearer ${posterCred}`);
+      expect(response.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('DELETE /user/:username/:postid/:commentid', () => {
+  describe('Given valid username', () => {
+    describe('Given valid credentials', () => {
+      describe('Given valid post', () => {
+        describe('Given valid comment', () => {
+          test('Responds with 200 status code', async () => {
+            const response = await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/${deleteUserPostComment}`)
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(200);
+            const response2 = await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/${removeUserPostComment}`)
+              .set('Authorization', `Bearer ${adminCred}`);
+            expect(response2.statusCode).toBe(200);
+          });
+
+          test('Comment data is deleted by author', async () => {
+            await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/${deleteUserPostComment}`)
+              .set('Authorization', `Bearer ${posterCred}`);
+            const comment = await Comment.findById(deleteUserPostComment);
+            const user = await User.findOne({ username: 'prolific' });
+            expect(comment.content).toEqual('[Deleted]');
+            expect(comment.author).toBeFalsy();
+            expect(user.comments.filter(c =>
+              c.toString() === deleteUserPostComment.toString()
+            ).length).toBe(0);
+          });
+
+          test('Comment data is removed by admin', async () => {
+            await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/${removeUserPostComment}`)
+              .set('Authorization', `Bearer ${adminCred}`);
+            const comment = await Comment.findById(removeUserPostComment);
+            const user = await User.findOne({ username: 'prolific' });
+            expect(comment.content).toEqual('[Removed]');
+            expect(comment.author).toBeFalsy();
+            expect(user.comments.filter(c =>
+              c.toString() === removeUserPostComment.toString()
+            ).length).toBe(0);
+          });
+        });
+
+        describe('Given invalid comment', () => {
+          test('Respond with 404 status code', async () => {
+            const response = await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/${doesNotExistPostComment}`)
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(404);
+            const response3 = await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/2`)
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response3.statusCode).toBe(404);
+            const response2 = await request(app)
+              .delete(`/api/v1/user/prolific/${stableUserPost}/${doesNotExistPostComment}`)
+              .set('Authorization', `Bearer ${adminCred}`);
+            expect(response2.statusCode).toBe(404);
+          });
+        });
+      });
+
+      describe('Given invalid post', () => {
+        test('Responds with 404 status code', async () => {
+          const response = await request(app)
+            .delete(`/api/v1/user/prolific/${doesNotExistPost}/${deleteUserPostComment}`)
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response.statusCode).toBe(404);
+          const response3 = await request(app)
+            .delete(`/api/v1/user/prolific/2/${deleteUserPostComment}`)
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response3.statusCode).toBe(404);
+          const response2 = await request(app)
+            .delete(`/api/v1/user/prolific/${doesNotExistPost}/${doesNotExistPostComment}`)
+            .set('Authorization', `Bearer ${adminCred}`);
+          expect(response2.statusCode).toBe(404);
+        });
+      });
+    });
+
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .delete(`/api/v1/user/prolific/${stableUserPost}/${deleteUserPostComment}`)
+          .set('Authorization', `Bearer ${badCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .delete(`/api/v1/user/prolific/${stableUserPost}/${deleteUserPostComment}`);
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+
+  describe('Given invalid username', () => {
+    test('Responds with 404 status code', async () => {
+      const response = await request(app)
+        .delete(`/api/v1/user/doesnotexist/${stableUserPost}/${deleteUserPostComment}`)
+        .set('Authorization', `Bearer ${posterCred}`);
+      expect(response.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('POST /user/:username/:postid/:commentid', () => {
+  describe('Given valid username', () => {
+    describe('Given credentials', () => {
+      describe('Given valid post', () => {
+        describe('Given valid comment', () => {
+          describe('Given valid submission info', () => {
+            test('Responds with 201 status code', async () => {
+              const response = await request(app)
+                .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
+                .send({ content: 'New child comment' })
+                .set('Authorization', `Bearer ${posterCred}`);
+              expect(response.statusCode).toBe(201);
+            });
+
+            test('Comment is added to comment chain', async () => {
+              const response = await request(app)
+                .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
+                .send({ content: 'Here I am' })
+                .set('Authorization', `Bearer ${posterCred}`);
+              const comment = await Comment.findById(stableUserPostComment).populate('comments');
+              expect(comment.comments.filter(c =>
+                c.content === 'Here I am'
+              ).length).toBe(1);
+            });
+
+            test('Comment is added to authors comments', async () => {
+              await request(app)
+                .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostCommentChild}`)
+                .send({ content: 'Need additional test comments' })
+                .set('Authorization', `Bearer ${updateCred}`);
+              const user = await User.findOne({ username: 'you_updater' }).populate('comments');
+              expect(user.comments.filter(c =>
+                c.content === 'Need additional test comments'
+              ).length).toBe(1);
+            });
+          });
+
+          describe('Given invalid submission info', () => {
+            test('Responds with 400 status code', async () => {
+              const data = [{}, { content: null }, { content: '' }];
+              for (const body of data) {
+                const response = await request(app)
+                  .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
+                  .send(body)
+                  .set('Authorization', `Bearer ${posterCred}`);
+                expect(response.statusCode).toBe(400);
+              }
+            });
+
+            test('Responds with json in content-type header', async () => {
+              const data = [{}, { content: null }, { content: '' }];
+              for (const body of data) {
+                const response = await request(app)
+                  .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
+                  .send(body)
+                  .set('Authorization', `Bearer ${posterCred}`);
+                expect(response.headers['content-type']).toEqual(expect.stringContaining('json'));
+              }
+            });
+
+            test('Responds with error message', async () => {
+              const data = [{}, { content: null }, { content: '' }];
+              for (const body of data) {
+                const response = await request(app)
+                  .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
+                  .send(body)
+                  .set('Authorization', `Bearer ${posterCred}`);
+                expect(response.body['errors']).toBeDefined();
+              }
+            });
+          });
+        });
+
+        describe('Given invalid comment', () => {
+          test('Responds with 404 status code', async () => {
+            const response = await request(app)
+              .post(`/api/v1/user/prolific/${stableUserPost}/${doesNotExistPostComment}`)
+              .send({ content: 'New child comment' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(404);
+          });
+        });
+      });
+
+      describe('Given invalid post', () => {
+        test('Responds with 404 status code', async () => {
+          const response = await request(app)
+            .post(`/api/v1/user/prolific/${doesNotExistPost}/${stableUserPostComment}`)
+            .send({ content: 'New child comment' })
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response.statusCode).toBe(404);
+        });
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
+          .send({ content: 'New child comment' });
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+
+  describe('Given invalid username', () => {
+    describe('Given valid credentials', () => {
+      test('Responds with 404 status code', async () => {
+        const response = await request(app)
+          .post(`/api/v1/user/doesnotexist/${stableUserPost}/${stableUserPostComment}`)
+          .send({ content: 'New child comment' })
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.statusCode).toBe(404);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .post(`/api/v1/user/doesnotexist/${stableUserPost}/${stableUserPostComment}`)
+          .send({ content: 'New child comment' });
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+});
+
 afterAll(async () => {
   await require('../mongoConfigTesting').closeServer();
 });
