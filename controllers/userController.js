@@ -255,6 +255,7 @@ exports.get_user_post = [
           post._id.toString() === req.params.postid
         )[0];
         if (post) {
+          const comments = await Comment.find({ post_parent: post._id });
           res.status(200).json(
             {
               user: {
@@ -269,10 +270,10 @@ exports.get_user_post = [
                 content: post.content,
                 author: post.author,
                 score: post.score,
-                comments: post.comments,
                 date_posted: post.date_posted,
                 date_edited: post.date_edited
-              }
+              },
+              comments
             }
           );
           return;
@@ -430,10 +431,10 @@ exports.create_comment = [
             post_parent: req.params.postid
           }
         ).save();
-        await Post.findByIdAndUpdate(
+        /* await Post.findByIdAndUpdate(
           req.params.postid,
           { $push: { comments: comment._id } }
-        );
+        ); */
         await User.findOneAndUpdate(
           { username: req.user.username },
           { $push: { comments: comment._id } }
@@ -617,12 +618,12 @@ exports.create_comment_child = [
               comment_parent: req.params.commentid
             }
           ).save();
-          await post.updateOne(
+          /* await post.updateOne(
             { $push: { comments: childComment._id } }
-          );
-          await parentComment.updateOne(
+          ); */
+          /* await parentComment.updateOne(
             { $push: { comments: childComment._id } }
-          )
+          ) */
           await User.findOneAndUpdate(
             { username: req.user.username },
             { $push: { comments: childComment._id } }
@@ -630,6 +631,132 @@ exports.create_comment_child = [
           res.sendStatus(201);
           return;
         }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.get_user_comments = [
+  param('username')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    try {
+      const user = await User.findOne({ username: req.params.username }).populate('comments');
+      if (user && !user.deleted) {
+        const comments = user.comments.sort((a, b) => a.date_posted <= b.date_posted);
+        res.status(200).json(
+          {
+            post_score: user.post_score,
+            comment_score: user.comment_score,
+            admin: user.admin,
+            moderator: user.moderator,
+            comments
+          }
+        );
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.get_user_posts = [
+  param('username')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    try {
+      const user = await User.findOne({ username: req.params.username }).populate('posts');
+      if (user && !user.deleted) {
+        const posts = user.posts.sort((a, b) => a.date_posted <= b.date_posted);
+        res.status(200).json(
+          {
+            post_score: user.post_score,
+            comment_score: user.comment_score,
+            admin: user.admin,
+            moderator: user.moderator,
+            posts
+          }
+        );
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.get_user_upvotes = [
+  passport.authenticate('jwt', { session: false }),
+  param('username')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (req.user.username !== req.params.username) {
+      res.sendStatus(403);
+      return;
+    }
+    try {
+      const user = await User.findOne({ username: req.params.username }).populate(['upvoted_posts', 'upvoted_comments']);
+      if (user && !user.deleted) {
+        const upvotedPosts = user.upvoted_posts.sort((a, b) => a.date_posted <= b.date_posted);
+        const upvotedComments = user.upvoted_comments.sort((a, b) => a.date_posted <= b.date_posted);
+        res.status(200).json(
+          {
+            post_score: user.post_score,
+            comment_score: user.comment_score,
+            admin: user.admin,
+            moderator: user.moderator,
+            upvotedPosts,
+            upvotedComments
+          }
+        );
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.get_user_downvotes = [
+  passport.authenticate('jwt', { session: false }),
+  param('username')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (req.user.username !== req.params.username) {
+      res.sendStatus(403);
+      return;
+    }
+    try {
+      const user = await User.findOne({ username: req.params.username }).populate(['downvoted_posts', 'downvoted_comments']);
+      if (user && !user.deleted) {
+        const downvotedPosts = user.downvoted_posts.sort((a, b) => a.date_posted <= b.date_posted);
+        const downvotedComments = user.downvoted_comments.sort((a, b) => a.date_posted <= b.date_posted);
+        res.status(200).json(
+          {
+            post_score: user.post_score,
+            comment_score: user.comment_score,
+            admin: user.admin,
+            moderator: user.moderator,
+            downvotedPosts,
+            downvotedComments
+          }
+        );
+        return;
       }
       next();
       return;

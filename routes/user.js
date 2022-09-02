@@ -8,6 +8,11 @@ router.delete('/:username', userController.delete_user);
 router.put('/:username', userController.update_user);
 router.post('/:username', userController.create_user_post);
 
+router.get('/:username/comments', userController.get_user_comments);
+router.get('/:username/posts', userController.get_user_posts);
+router.get('/:username/upvoted', userController.get_user_upvotes);
+router.get('/:username/downvoted', userController.get_user_downvotes);
+
 router.get('/:username/:postid', userController.get_user_post);
 router.put('/:username/:postid', userController.update_user_post);
 router.delete('/:username/:postid', userController.delete_user_post);
