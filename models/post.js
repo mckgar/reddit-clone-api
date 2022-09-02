@@ -19,10 +19,6 @@ const PostSchema = mongoose.Schema(
       type: Number,
       default: 0
     },
-    comments: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Comment'
-    }],
     user_post: {
       type: Boolean,
       require: true
