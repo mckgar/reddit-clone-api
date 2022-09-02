@@ -916,7 +916,7 @@ describe('GET /user/:username/:postid', () => {
         expect(response.body.post.content).toBeDefined();
         expect(response.body.post.author).toBeDefined();
         expect(response.body.post.score).toBeDefined();
-        expect(response.body.post.comments).toBeDefined();
+        expect(response.body.comments).toBeDefined();
         expect(response.body.post.date_posted).toBeDefined();
         expect(response.body.post.date_edited).toBeDefined();
       });
@@ -929,10 +929,36 @@ describe('GET /user/:username/:postid', () => {
         expect(response.body.post.content).toEqual(post.content);
         expect(response.body.post.author).toEqual(post.author.toString());
         expect(response.body.post.score).toEqual(post.score);
-        expect(response.body.post.comments).toEqual(post.comments.map(a => a.toString()));
         expect(new Date(response.body.post.date_posted).valueOf()).toBe(post.date_posted.valueOf());
         expect(new Date(response.body.post.date_edited).valueOf()).toBe(post.date_edited.valueOf());
       });
+
+      test('Post comments are valid', async () => {
+        const response = await request(app)
+          .get(`/api/v1/user/prolific/${stableUserPost.toString()}`);
+        const comments = await Comment.find({ post_parent: stableUserPost });
+        const modified = [];
+        for (const comment of comments) {
+          const copy = {
+            _id: comment._id.toString(),
+            content: comment.content,
+            author: comment.author.toString(),
+            score: comment.score,
+            post_parent: comment.post_parent.toString(),
+            date_posted: comment.date_posted.valueOf(),
+            date_edited: comment.date_edited.valueOf(),
+            __v: comment.__v
+          }
+          if (comment.comment_parent) copy.comment_parent = comment.comment_parent.toString();
+          modified.push(copy);
+        }
+        const check = response.body.comments;
+        for (const comment of check) {
+          comment.date_posted = new Date(comment.date_posted).valueOf();
+          comment.date_edited = new Date(comment.date_edited).valueOf();
+        }
+        expect(check).toEqual(modified);
+      })
     });
 
     describe('Given invalid post', () => {
@@ -1179,7 +1205,7 @@ describe('POST /user/:username/:postid', () => {
             expect(response.statusCode).toBe(201);
           });
 
-          test('Comment is added to post', async () => {
+          /* test('Comment is added to post', async () => {
             await request(app)
               .post(`/api/v1/user/prolific/${stableUserPost}`)
               .send({ content: 'I am a unique test comment' })
@@ -1188,7 +1214,7 @@ describe('POST /user/:username/:postid', () => {
             expect(post.comments.filter(c =>
               c.content === 'I am a unique test comment'
             ).length).toBe(1);
-          });
+          }); */
 
           test('Comment is added to authors comments', async () => {
             await request(app)
@@ -1473,7 +1499,7 @@ describe('POST /user/:username/:postid/:commentid', () => {
               expect(response.statusCode).toBe(201);
             });
 
-            test('Comment is added to comment chain', async () => {
+            /* test('Comment is added to comment chain', async () => {
               const response = await request(app)
                 .post(`/api/v1/user/prolific/${stableUserPost}/${stableUserPostComment}`)
                 .send({ content: 'Here I am' })
@@ -1482,7 +1508,7 @@ describe('POST /user/:username/:postid/:commentid', () => {
               expect(comment.comments.filter(c =>
                 c.content === 'Here I am'
               ).length).toBe(1);
-            });
+            }); */
 
             test('Comment is added to authors comments', async () => {
               await request(app)
@@ -1580,6 +1606,387 @@ describe('POST /user/:username/:postid/:commentid', () => {
         const response = await request(app)
           .post(`/api/v1/user/doesnotexist/${stableUserPost}/${stableUserPostComment}`)
           .send({ content: 'New child comment' });
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+});
+
+describe('/user/:username/comments', () => {
+  describe('Valid username', () => {
+    test('Responds with 200 status code', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/prolific/comments');
+      expect(response.statusCode).toBe(200);
+    });
+
+    test('Responds with json in content-type header', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/prolific/comments');
+      expect(response.headers['content-type']).toEqual(expect.stringContaining('json'));
+    });
+
+    test('Responds with user information', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/bad_cred/comments');
+      expect(response.body.post_score).toBeDefined();
+      expect(response.body.comment_score).toBeDefined();
+      expect(response.body.admin).toBeDefined();
+      expect(response.body.moderator).toBeDefined();
+      expect(response.body.comments).toBeDefined();
+    });
+
+    test('User information is valid', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/prolific/comments');
+      const user = await User.findOne({ username: 'prolific' }).populate('comments');
+      user.comments = user.comments.sort((a, b) => a.date_posted <= b.date_posted);
+      const comments = [];
+      for (const comment of user.comments) {
+        const copy = {
+          _id: comment._id.toString(),
+          content: comment.content,
+          author: comment.author.toString(),
+          score: comment.score,
+          post_parent: comment.post_parent.toString(),
+          date_posted: comment.date_posted.valueOf(),
+          date_edited: comment.date_edited.valueOf(),
+          __v: comment.__v
+        }
+        if (comment.comment_parent) copy.comment_parent = comment.comment_parent.toString();
+        comments.push(copy);
+      }
+      const check = response.body.comments;
+      for (const comment of check) {
+        comment.date_posted = new Date(comment.date_posted).valueOf();
+        comment.date_edited = new Date(comment.date_edited).valueOf();
+      }
+      expect(response.body.post_score).toEqual(user.post_score);
+      expect(response.body.comment_score).toEqual(user.comment_score);
+      expect(response.body.admin).toEqual(user.admin);
+      expect(response.body.moderator).toEqual(user.moderator);
+      expect(check).toEqual(comments);
+    });
+  });
+
+  describe('Invalid username', () => {
+    test('Responds with 404 status code', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/doesnotexist/comments');
+      expect(response.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('GET /user/:username/posts', () => {
+  describe('Given valid username', () => {
+    test('Responds with 200 status code', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/prolific/posts');
+      expect(response.statusCode).toBe(200);
+    });
+
+    test('Responds with json in content-type header', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/prolific/posts');
+      expect(response.headers['content-type']).toEqual(expect.stringContaining('json'));
+    });
+
+    test('Responds with user information', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/bad_cred/posts');
+      expect(response.body.post_score).toBeDefined();
+      expect(response.body.comment_score).toBeDefined();
+      expect(response.body.admin).toBeDefined();
+      expect(response.body.moderator).toBeDefined();
+      expect(response.body.posts).toBeDefined();
+    });
+
+    test('User information is valid', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/prolific/posts');
+      const user = await User.findOne({ username: 'prolific' }).populate('posts');
+      user.posts = user.posts.sort((a, b) => a.date_posted <= b.date_posted);
+      const posts = [];
+      for (const post of user.posts) {
+        const copy = {
+          _id: post._id.toString(),
+          title: post.title,
+          author: post.author.toString(),
+          score: post.score,
+          user_post: post.user_post,
+          date_posted: post.date_posted.valueOf(),
+          date_edited: post.date_edited.valueOf(),
+          __v: post.__v
+        }
+        if (post.content) copy.content = post.content;
+        if (post.subreddit) copy.subreddit = post.subreddit;
+        posts.push(copy);
+      }
+      const check = response.body.posts;
+      for (const post of check) {
+        post.date_posted = new Date(post.date_posted).valueOf();
+        post.date_edited = new Date(post.date_edited).valueOf();
+      }
+      expect(response.body.post_score).toEqual(user.post_score);
+      expect(response.body.comment_score).toEqual(user.comment_score);
+      expect(response.body.admin).toEqual(user.admin);
+      expect(response.body.moderator).toEqual(user.moderator);
+      expect(check).toEqual(posts);
+    });
+  });
+
+  describe('Given invalid username', () => {
+    test('Responds with 404 status code', async () => {
+      const response = await request(app)
+        .get('/api/v1/user/doesnotexist/posts');
+      expect(response.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('GET /user/:username/upvoted', () => {
+  describe('Given valid username', () => {
+    describe('Given valid credentials', () => {
+      test('Responds with 200 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/upvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.statusCode).toBe(200);
+      });
+
+      test('Responds with json in content-type header', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/upvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.header['content-type']).toEqual(expect.stringContaining('json'));
+      });
+
+      test('Responds with user information', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/upvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.body.post_score).toBeDefined();
+        expect(response.body.comment_score).toBeDefined();
+        expect(response.body.admin).toBeDefined();
+        expect(response.body.moderator).toBeDefined();
+        expect(response.body.upvotedPosts).toBeDefined();
+        expect(response.body.upvotedComments).toBeDefined();
+      });
+
+      test('User information is valid', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/upvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        const user = await User.findOne({ username: 'prolific' }).populate(['upvoted_posts', 'upvoted_comments']);
+        user.upvoted_posts = user.upvoted_posts.sort((a, b) => a.date_posted <= b.date_posted);
+        user.upvoted_comments = user.upvoted_comments.sort((a, b) => a.date_posted <= b.date_posted);
+        const upvotedPosts = [];
+        for (const post of user.upvoted_posts) {
+          const copy = {
+            _id: post._id.toString(),
+            title: post.title,
+            author: post.author.toString(),
+            score: post.score,
+            user_post: post.user_post,
+            date_posted: post.date_posted.valueOf(),
+            date_edited: post.date_edited.valueOf(),
+            __v: post.__v
+          }
+          if (post.content) copy.content = post.content;
+          if (post.subreddit) copy.subreddit = post.subreddit;
+          upvotedPosts.push(copy);
+        }
+        const upvotedComments = [];
+        for (const comment of user.upvoted_comments) {
+          const copy = {
+            _id: comment._id.toString(),
+            content: comment.content,
+            author: comment.author.toString(),
+            score: comment.score,
+            post_parent: comment.post_parent.toString(),
+            date_posted: comment.date_posted.valueOf(),
+            date_edited: comment.date_edited.valueOf(),
+            __v: comment.__v
+          }
+          if (comment.comment_parent) copy.comment_parent = comment.comment_parent.toString();
+          comments.push(copy);
+        }
+        const checkPosts = response.body.upvotedPosts;
+        for (const post of checkPosts) {
+          post.date_posted = new Date(post.date_posted).valueOf();
+          post.date_edited = new Date(post.date_edited).valueOf();
+        }
+        const checkComments = response.body.upvotedComments;
+        for (const comment of checkComments) {
+          comment.date_posted = new Date(comment.date_posted).valueOf();
+          comment.date_edited = new Date(comment.date_edited).valueOf();
+        }
+        expect(response.body.post_score).toEqual(user.post_score);
+        expect(response.body.comment_score).toEqual(user.comment_score);
+        expect(response.body.admin).toEqual(user.admin);
+        expect(response.body.moderator).toEqual(user.moderator);
+        expect(checkPosts).toEqual(upvotedPosts);
+        expect(checkComments).toEqual(upvotedComments);
+      });
+    });
+
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/upvoted')
+          .set('Authorization', `Bearer ${badCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/upvoted');
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+
+  describe('Given invalid username', () => {
+    describe('Given credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/doesnotexist/upvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/doesnotexist/upvoted');
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+});
+
+describe('GET /user/:username/downvoted', () => {
+  describe('Given valid username', () => {
+    describe('Given valid credentials', () => {
+      test('Responds with 200 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/downvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.statusCode).toBe(200);
+      });
+
+      test('Responds with json in content-type header', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/downvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.header['content-type']).toEqual(expect.stringContaining('json'));
+      });
+
+      test('Responds with user information', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/downvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.body.post_score).toBeDefined();
+        expect(response.body.comment_score).toBeDefined();
+        expect(response.body.admin).toBeDefined();
+        expect(response.body.moderator).toBeDefined();
+        expect(response.body.downvotedPosts).toBeDefined();
+        expect(response.body.downvotedComments).toBeDefined();
+      });
+
+      test('User information is valid', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/downvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        const user = await User.findOne({ username: 'prolific' }).populate(['downvoted_posts', 'downvoted_comments']);
+        user.downvoted_posts = user.downvoted_posts.sort((a, b) => a.date_posted <= b.date_posted);
+        user.downvoted_comments = user.downvoted_comments.sort((a, b) => a.date_posted <= b.date_posted);
+        const downvotedPosts = [];
+        for (const post of user.downvoted_posts) {
+          const copy = {
+            _id: post._id.toString(),
+            title: post.title,
+            author: post.author.toString(),
+            score: post.score,
+            user_post: post.user_post,
+            date_posted: post.date_posted.valueOf(),
+            date_edited: post.date_edited.valueOf(),
+            __v: post.__v
+          }
+          if (post.content) copy.content = post.content;
+          if (post.subreddit) copy.subreddit = post.subreddit;
+          downvotedPosts.push(copy);
+        }
+        const downvotedComments = [];
+        for (const comment of user.downvoted_comments) {
+          const copy = {
+            _id: comment._id.toString(),
+            content: comment.content,
+            author: comment.author.toString(),
+            score: comment.score,
+            post_parent: comment.post_parent.toString(),
+            date_posted: comment.date_posted.valueOf(),
+            date_edited: comment.date_edited.valueOf(),
+            __v: comment.__v
+          }
+          if (comment.comment_parent) copy.comment_parent = comment.comment_parent.toString();
+          comments.push(copy);
+        }
+        const checkPosts = response.body.downvotedPosts;
+        for (const post of checkPosts) {
+          post.date_posted = new Date(post.date_posted).valueOf();
+          post.date_edited = new Date(post.date_edited).valueOf();
+        }
+        const checkComments = response.body.downvotedComments;
+        for (const comment of checkComments) {
+          comment.date_posted = new Date(comment.date_posted).valueOf();
+          comment.date_edited = new Date(comment.date_edited).valueOf();
+        }
+        expect(response.body.post_score).toEqual(user.post_score);
+        expect(response.body.comment_score).toEqual(user.comment_score);
+        expect(response.body.admin).toEqual(user.admin);
+        expect(response.body.moderator).toEqual(user.moderator);
+        expect(checkPosts).toEqual(downvotedPosts);
+        expect(checkComments).toEqual(downvotedComments);
+      });
+    });
+
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/downvoted')
+          .set('Authorization', `Bearer ${badCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/prolific/downvoted');
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+
+  describe('Given invalid username', () => {
+    describe('Given credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/doesnotexist/downvoted')
+          .set('Authorization', `Bearer ${posterCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .get('/api/v1/user/doesnotexist/downvoted');
         expect(response.statusCode).toBe(401);
       });
     });
