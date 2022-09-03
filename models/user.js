@@ -31,24 +31,19 @@ const UserSchema = mongoose.Schema(
       default: false
     },
     moderator: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subreddit'
+      type: String
     }],
     subscriptions: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subreddit'
+      type: String
     }],
     following: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      type: String
     }],
     followers: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      type: String
     }],
     blocked: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      type: String
     }],
     posts: [{
       type: mongoose.Schema.Types.ObjectId,
