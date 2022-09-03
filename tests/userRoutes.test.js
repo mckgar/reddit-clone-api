@@ -512,57 +512,91 @@ describe('GET /user/:username', () => {
 });
 
 describe('DELETE /user/:username', () => {
-  describe('Given invalid credentials', () => {
-    test('Responds with 401 status code when not supplied credentials', async () => {
-      const response = await request(app).delete('/api/v1/user/tonotdelete0');
-      expect(response.statusCode).toBe(401);
+  // Deletes user data but doesn't remove entry from database to match reddit
+  // functionality of knowing which username has existed but has been deleted
+  describe('Given valid username', () => {
+    describe('Given valid credentials', () => {
+      test('Responds with 200 status code', async () => {
+        const response = await request(app)
+          .delete('/api/v1/user/tobedeleted0')
+          .set('Authorization', `Bearer ${deleteCred0}`);
+        expect(response.statusCode).toBe(200);
+        const response2 = await request(app)
+          .delete('/api/v1/user/tobedeleted1')
+          .set('Authorization', `Bearer ${adminCred}`);
+        expect(response2.statusCode).toBe(200);
+      });
+
+      test('User data is deleted', async () => {
+        await request(app)
+          .delete('/api/v1/user/tobedeleted3')
+          .set('Authorization', `Bearer ${deleteCred3}`);
+        const deleted = await User.findOne({ username: 'tobedeleted3' });
+        expect(deleted.username).toEqual('tobedeleted3');
+        expect(deleted.password).toEqual(null);
+        expect(deleted.email).toEqual(null);
+        expect(deleted.post_score).toEqual(null);
+        expect(deleted.comment_score).toEqual(null);
+        expect(deleted.admin).toEqual(null);
+        expect(deleted.moderator).toEqual(null);
+        expect(deleted.subscriptions).toEqual(null);
+        expect(deleted.following).toEqual(null);
+        expect(deleted.followers).toEqual(null);
+        expect(deleted.blocked).toEqual(null);
+        expect(deleted.posts).toEqual(null);
+        expect(deleted.comments).toEqual(null);
+        expect(deleted.upvoted_posts).toEqual(null);
+        expect(deleted.upvoted_comments).toEqual(null);
+        expect(deleted.downvoted_posts).toEqual(null);
+        expect(deleted.downvoted_comments).toEqual(null);
+        expect(deleted.chats).toEqual(null);
+        expect(deleted.deleted).toBeTruthy();
+      });
     });
 
-    test('Responds with 403 status code when supplied invalid credentials', async () => {
-      const response = await request(app).delete('/api/v1/user/tonotdelete0').set('Authorization', `Bearer ${badCred}`);
-      expect(response.statusCode).toBe(403);
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .delete('/api/v1/user/tobedeleted2')
+          .set('Authorization', `Bearer ${badCred}`);
+        expect(response.statusCode).toBe(403);
+      });
     });
 
-    test('User is not removed from database', async () => {
-      await request(app).delete('/api/v1/user/tonotdelete0');
-      const user = await User.findOne({ username: 'tonotdelete0' });
-      expect(user).toBeTruthy();
-    })
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .delete('/api/v1/user/tobedeleted2');
+        expect(response.statusCode).toBe(401);
+      });
+    });
   });
 
-  describe('Given valid credentials and valid user', () => {
-    test('Responds with 200 status code when the user requests to be deleted', async () => {
-      const response = await request(app).delete('/api/v1/user/tobedeleted0').set('Authorization', `Bearer ${deleteCred0}`);
-      expect(response.statusCode).toBe(200);
+  describe('Given invalid username', () => {
+    describe('Given valid credentials', () => {
+      test('Responds with 404 status code', async () => {
+        const response = await request(app)
+          .delete('/api/v1/user/doesnotexist')
+          .set('Authorization', `Bearer ${adminCred}`);
+          expect(response.statusCode).toBe(404);
+      });
     });
 
-    test('Responds with 200 status code when an admin requests to delete a user', async () => {
-      const response = await request(app).delete('/api/v1/user/tobedeleted1').set('Authorization', `Bearer ${adminCred}`);
-      expect(response.statusCode).toBe(200);
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .delete('/api/v1/user/doesnotexist')
+          .set('Authorization', `Bearer ${badCred}`);
+          expect(response.statusCode).toBe(403);
+      });
     });
 
-    test('User is removed from database', async () => {
-      await request(app).delete('/api/v1/user/tobedeleted2').set('Authorization', `Bearer ${adminCred}`);
-      await request(app).delete('/api/v1/user/tobedeleted3').set('Authorization', `Bearer ${deleteCred3}`);
-      const delete2 = await User.findOne({ username: 'tobedeleted2' });
-      const delete3 = await User.findOne({ username: 'tobedeleted3' });
-      expect(delete2).toBeFalsy();
-      expect(delete3).toBeFalsy();
-    });
-
-  });
-
-  describe('Given valid credentials but invalid user', () => {
-    test('Responds with 404 status code', async () => {
-      const response = await request(app).delete('/api/v1/user/doesnotexist').set('Authorization', `Bearer ${adminCred}`);
-      expect(response.statusCode).toBe(404);
-    });
-
-    test('Responds with correct error message', async () => {
-      const response = await request(app).delete('/api/v1/user/doesnotexist').set('Authorization', `Bearer ${adminCred}`);
-      const response2 = await request(app).delete('/api/v1/user/doesnotexist2').set('Authorization', `Bearer ${adminCred}`);
-      expect(response.body.message).toEqual('User doesnotexist does not exist');
-      expect(response2.body.message).toEqual('User doesnotexist2 does not exist');
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .delete('/api/v1/user/doesnotexist');
+        expect(response.statusCode).toBe(401);
+      });
     });
   });
 });

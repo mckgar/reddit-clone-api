@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const mongoose = require('mongoose');
+const { ResultWithContext } = require('express-validator/src/chain');
 require('../passport');
 
 exports.create_user = [
@@ -101,15 +102,56 @@ exports.delete_user = [
     try {
       const user = await User.findOne({ username: req.params.username });
       if (user) {
-        await user.delete();
+        const updates = {
+          deleted: true,
+          password: null,
+          post_score: null,
+          comment_score: null,
+          email: null,
+          admin: null,
+          moderator: null,
+          subscriptions: null,
+          following: null,
+          followers: null,
+          blocked: null,
+          posts: null,
+          comments: null,
+          upvoted_posts: null,
+          upvoted_comments: null,
+          downvoted_posts: null,
+          downvoted_comments: null,
+          chats: null
+        };
+        if (user.following.length > 0) {
+          for (const following of user.following) {
+            await following.updateOne(
+              { $pull: { followers: req.user.username } }
+            );
+          }
+        }
+        if (user.followers.length > 0) {
+          for (const follower of user.followers) {
+            await follower.updateOne(
+              { $pull: { following: req.user.username } }
+            );
+          }
+        }
+        //remove from subreddit subscribers when made
+        //remove from subreddit moderators when made
+        //remove from chats when made
+        await Post.updateMany(
+          { author: req.params.username },
+          { author: '[Deleted]' }
+        );
+        await Comment.updateMany(
+          { author: req.params.username },
+          { author: '[Deleted]' }
+        );
+        await user.updateOne(updates);
         res.sendStatus(200);
         return;
       }
-      res.status(404).json(
-        {
-          message: `User ${req.params.username} does not exist`
-        }
-      );
+      next();
       return;
     } catch (err) {
       next(err);
