@@ -215,7 +215,7 @@ exports.create_user_post = [
         const post = new Post({
           title: req.body.title,
           content: req.body.content,
-          author: req.user.id,
+          author: req.user.username,
           user_post: true
 
         });
@@ -359,15 +359,15 @@ exports.delete_user_post = [
     const user = await User.findOne({ username: req.params.username });
     if (user) {
       try {
-        const deleteUpdate = {
-          author: null
-        };
+        const deleteUpdate = {};
         if (req.user.username === req.params.username) {
           deleteUpdate.title = '[Deleted by user]';
           deleteUpdate.content = '[Deleted by user]';
+          deleteUpdate.author = '[Deleted]';
         } else {
           deleteUpdate.title = '[Removed by admin]';
           deleteUpdate.content = '[Removed by admin]';
+          deleteUpdate.author = '[Removed]';
         }
         const post = await Post.findByIdAndUpdate(req.params.postid, deleteUpdate);
         await User.findOneAndUpdate(
@@ -427,14 +427,10 @@ exports.create_comment = [
         const comment = await new Comment(
           {
             content: req.body.content,
-            author: req.user.id,
+            author: req.user.username,
             post_parent: req.params.postid
           }
         ).save();
-        /* await Post.findByIdAndUpdate(
-          req.params.postid,
-          { $push: { comments: comment._id } }
-        ); */
         await User.findOneAndUpdate(
           { username: req.user.username },
           { $push: { comments: comment._id } }
@@ -490,7 +486,7 @@ exports.update_comment = [
       }
       const comment = await Comment.findById(req.params.commentid);
       if (comment && comment.post_parent.toString() === req.params.postid) {
-        if (req.user._id.toString() !== comment.author.toString()) {
+        if (req.user.username !== comment.author) {
           res.sendStatus(403);
           return;
         }
@@ -537,21 +533,20 @@ exports.delete_comment = [
         const comment = await Comment.findById(req.params.commentid);
         if (comment) {
           if (!comment.author
-            || req.user._id.toString() !== comment.author.toString()
-            && !req.user.admin) {
+            || req.user.username !== comment.author && !req.user.admin) {
             res.sendStatus(403);
             return;
           }
-          const updates = {
-            author: null
-          };
-          if (req.user._id.toString() === comment.author.toString()) {
-            updates.content = '[Deleted]'
+          const updates = {};
+          if (req.user.username === comment.author) {
+            updates.content = '[Deleted]';
+            updates.author = '[Deleted]';
           } else {
-            updates.content = '[Removed]'
+            updates.content = '[Removed]';
+            updates.author = '[Removed]';
           }
-          await User.findByIdAndUpdate(
-            comment.author,
+          await User.findOneAndUpdate(
+            { username: comment.author },
             { $pull: { comments: comment._id } }
           );
           await comment.updateOne(updates);
@@ -613,17 +608,11 @@ exports.create_comment_child = [
           const childComment = await new Comment(
             {
               content: req.body.content,
-              author: req.user.id,
+              author: req.user.username,
               post_parent: req.params.postid,
               comment_parent: req.params.commentid
             }
           ).save();
-          /* await post.updateOne(
-            { $push: { comments: childComment._id } }
-          ); */
-          /* await parentComment.updateOne(
-            { $push: { comments: childComment._id } }
-          ) */
           await User.findOneAndUpdate(
             { username: req.user.username },
             { $push: { comments: childComment._id } }

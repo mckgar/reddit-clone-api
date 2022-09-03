@@ -101,7 +101,7 @@ beforeAll(async () => {
       }
     ).save();
 
-    const prolific = await new User(
+    await new User(
       {
         username: 'prolific',
         password: 'whocares'
@@ -114,7 +114,7 @@ beforeAll(async () => {
       {
         title: 'Stable Post',
         content: 'Stable post content',
-        author: prolific._id,
+        author: 'prolific',
         user_post: true
       }
     ).save();
@@ -128,7 +128,7 @@ beforeAll(async () => {
       {
         title: 'Update Post',
         content: 'Update post content',
-        author: prolific._id,
+        author: 'prolific',
         user_post: true
       }
     ).save();
@@ -142,7 +142,7 @@ beforeAll(async () => {
       {
         title: 'Delete Post',
         content: 'Delete post content',
-        author: prolific._id,
+        author: 'prolific',
         user_post: true
       }
     ).save();
@@ -156,7 +156,7 @@ beforeAll(async () => {
       {
         title: 'Remove Post',
         content: 'Remove post content',
-        author: prolific._id,
+        author: 'prolific',
         user_post: true
       }
     ).save();
@@ -170,7 +170,7 @@ beforeAll(async () => {
     const stableComment = await new Comment(
       {
         content: 'Stable comment content',
-        author: prolific._id,
+        author: 'prolific',
         post_parent: stableUserPost
       }
     ).save();
@@ -187,7 +187,7 @@ beforeAll(async () => {
     const stableCommentChild = await new Comment(
       {
         content: 'Stable comment child content',
-        author: prolific._id,
+        author: 'prolific',
         post_parent: stableUserPost,
         comment_parent: stableUserPostComment
       }
@@ -205,7 +205,7 @@ beforeAll(async () => {
     const updateComment = await new Comment(
       {
         content: 'Update comment content',
-        author: prolific._id,
+        author: 'prolific',
         post_parent: stableUserPost
       }
     ).save();
@@ -222,7 +222,7 @@ beforeAll(async () => {
     const deleteComment = await new Comment(
       {
         content: 'Delete comment content',
-        author: prolific._id,
+        author: 'prolific',
         post_parent: stableUserPost
       }
     ).save();
@@ -239,7 +239,7 @@ beforeAll(async () => {
     const removeComment = await new Comment(
       {
         content: 'Remove comment content',
-        author: prolific._id,
+        author: 'prolific',
         post_parent: stableUserPost
       }
     ).save();
@@ -1119,7 +1119,7 @@ describe('DELETE user/:username/:postid', () => {
           const user = await User.findOne({ username: 'prolific' });
           expect(post.title).toEqual('[Deleted by user]');
           expect(post.content).toEqual('[Deleted by user]');
-          expect(post.author).toBeFalsy();
+          expect(post.author).toEqual('[Deleted]');
           expect(user.posts.filter(p =>
             p.toString() === deleteUserPost.toString()
           ).length).toBe(0);
@@ -1133,7 +1133,7 @@ describe('DELETE user/:username/:postid', () => {
           const user = await User.findOne({ username: 'prolific' });
           expect(post.title).toEqual('[Removed by admin]');
           expect(post.content).toEqual('[Removed by admin]');
-          expect(post.author).toBeFalsy();
+          expect(post.author).toEqual('[Removed]');
           expect(user.posts.filter(p =>
             p.toString() === removedUserPost.toString()
           ).length).toBe(0);
@@ -1401,7 +1401,7 @@ describe('DELETE /user/:username/:postid/:commentid', () => {
             const comment = await Comment.findById(deleteUserPostComment);
             const user = await User.findOne({ username: 'prolific' });
             expect(comment.content).toEqual('[Deleted]');
-            expect(comment.author).toBeFalsy();
+            expect(comment.author).toEqual('[Deleted]');
             expect(user.comments.filter(c =>
               c.toString() === deleteUserPostComment.toString()
             ).length).toBe(0);
@@ -1414,7 +1414,7 @@ describe('DELETE /user/:username/:postid/:commentid', () => {
             const comment = await Comment.findById(removeUserPostComment);
             const user = await User.findOne({ username: 'prolific' });
             expect(comment.content).toEqual('[Removed]');
-            expect(comment.author).toBeFalsy();
+            expect(comment.author).toEqual('[Removed]');
             expect(user.comments.filter(c =>
               c.toString() === removeUserPostComment.toString()
             ).length).toBe(0);

@@ -12,8 +12,8 @@ const PostSchema = mongoose.Schema(
       maxLength: 10000
     },
     author: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      type: String,
+      require: true
     },
     score: {
       type: Number,
