@@ -6,7 +6,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const mongoose = require('mongoose');
-const { ResultWithContext } = require('express-validator/src/chain');
 require('../passport');
 
 exports.create_user = [
@@ -182,7 +181,10 @@ exports.update_user = [
     .isBoolean()
     .optional(),
   async (req, res, next) => {
-    if (req.user.username !== req.params.username && !req.user.admin) {
+    if ((req.user.username !== req.params.username && !req.user.admin)
+      || (req.body.admin && !req.user.admin)
+      || ((req.body.email || req.body.password) && req.user.username !== req.params.username)
+      ) {
       res.sendStatus(403);
       return;
     }
@@ -202,13 +204,7 @@ exports.update_user = [
         const hashedPassword = await bcrypt.hash(req.body.password, 10);
         updates.password = hashedPassword;
       }
-      if (req.body.admin) {
-        if (!req.user.admin) {
-          res.sendStatus(403);
-          return;
-        }
-        updates.admin = req.body.admin;
-      }
+      if (req.body.admin) updates.admin = req.body.admin;
       const user = await User.findOneAndUpdate({ username: req.params.username }, updates);
       if (user) {
         res.sendStatus(200);
