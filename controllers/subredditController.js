@@ -2,6 +2,9 @@ const Subreddit = require('../models/subreddit');
 const { body, param, validationResult } = require('express-validator');
 const passport = require('passport');
 const User = require('../models/user');
+const Post = require('../models/post');
+const Comment = require('../models/comment');
+const { default: mongoose } = require('mongoose');
 require('../passport');
 
 exports.create_subreddit = [
@@ -215,6 +218,300 @@ exports.update_subreddit = [
       return;
     } catch (err) {
       next(err);
+    }
+  }
+];
+
+exports.create_post = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  body('title')
+    .trim()
+    .escape()
+    .isLength({ min: 1 })
+    .withMessage('Title is required')
+    .isLength({ max: 300 })
+    .withMessage('Title is too long'),
+  body('content')
+    .trim()
+    .escape()
+    .isLength({ max: 300 })
+    .withMessage('Content is too long')
+    .optional(),
+  async (req, res, next) => {
+    const errors = validationResult(req);
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        if (subreddit.banned_users.find(user => { return user === req.user.username })) {
+          res.sendStatus(403);
+          return;
+        }
+        if (!errors.isEmpty()) {
+          res.status(400).json(
+            {
+              errors: errors.array()
+            }
+          );
+          return;
+        }
+        const post = new Post({
+          title: req.body.post,
+          author: req.user.username
+        });
+        if (req.body.content) post.content = req.body.content;
+        const saved = await post.save();
+        await User.findOneAndUpdate(
+          { username: req.user.username },
+          { $push: { posts: saved._id } }
+        );
+        await Subreddit.findOneAndUpdate(
+          { name: req.params.subreddit },
+          { $push: { posts: saved._id } }
+        );
+        res.status(201).json(
+          {
+            post_id: saved._id
+          }
+        );
+        return;
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.get_post = [
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        const info = {
+          banned: subreddit.banned
+        };
+        if (subreddit.banned) {
+          info.date_banned = subreddit.date_banned;
+          res.status(200).json(
+            {
+              info
+            }
+          );
+          return;
+        }
+        info.description = subreddit.description;
+        info.creator = subreddit.creator;
+        info.date_created = subreddit.date_created;
+        info.subscribers = subreddit.subscribers.length;
+        info.moderators = subreddit.moderators;
+        const post = await Post.findById(req.params.postid);
+        if (post && post.subreddit === req.params.subreddit) {
+          const postInfo = {
+            title: post.title,
+            content: post.content,
+            author: post.author,
+            score: post.score,
+            date_posted: post.date_posted,
+            date_edited: post.date_edited
+          };
+          const comments = await Comment.find({ post_parent: req.params.postid });
+          res.status(200).json(
+            {
+              info,
+              post: postInfo,
+              comments
+            }
+          );
+          return;
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.update_post = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  body('content')
+    .trim()
+    .escape()
+    .isLength({ max: 50000 })
+    .withMessage('Post content is too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        if (subreddit.banned) {
+          res.sendStatus(403);
+          return;
+        }
+        const post = await Post.findById(req.params.postid);
+        if (post && post.subreddit === req.params.subreddit) {
+          if (req.user.username !== post.author && !req.user.admin) {
+            res.sendStatus(403);
+            return;
+          }
+          const errors = validationResult(req);
+          if (!errors.isEmpty()) {
+            res.status(400).json(
+              {
+                errors: errors.array()
+              }
+            );
+            return;
+          }
+          await post.updateOne(
+            { content: req.body.content }
+          );
+          res.status(200).json();
+          return;
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.delete_post = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        const post = await Post.findById(req.params.postid);
+        if (post && post.subreddit === req.params.subreddit) {
+          const update = {
+            author: '[Deleted]'
+          };
+          if (req.user.username === post.author) {
+            update.title = '[Deleted by user]';
+            update.content = '[Deleted by user]';
+          } else if (subreddit.moderators.find(user => { return user === req.user.username })) {
+            update.title = '[Removed by mods]';
+            update.content = '[Removed by mods]';
+          } else if (req.user.admin) {
+            update.title = '[Removed by admins]';
+            update.content = '[Removed by admins]';
+          } else {
+            res.sendStatus(403);
+            return;
+          }
+          await User.findOneAndUpdate(
+            { username: post.author },
+            { $push: { posts: req.params.postid } }
+          );
+          await post.updateOne(update);
+          res.sendStatus(200);
+          return;
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.create_comment = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  body('content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Comment is required')
+    .escape()
+    .isLength({ max: 10000 })
+    .withMessage('Comment is too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
+      next();
+      return;
+    }
+
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        if (subreddit.banned_users.find(user => { return user === req.user.username })
+          || subreddit.banned) {
+          res.sendStatus(403);
+          return;
+        }
+        const post = await Post.findById(req.params.postid);
+        if (post) {
+          const errors = validationResult(req);
+          if (!errors.isEmpty()) {
+            res.status(400).json(
+              {
+                errors: errors.array()
+              }
+            );
+            return;
+          }
+          const comment = await new Comment(
+            {
+              content: req.body.content,
+              author: req.user.username,
+              post_parent: req.params.postid
+            }
+          ).save();
+          await User.findOneAndUpdate(
+            { username: req.user.username },
+            { $push: { comments: comment._id } }
+          );
+          res.sendStatus(201);
+          return;
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err)
     }
   }
 ];
