@@ -24,8 +24,7 @@ const PostSchema = mongoose.Schema(
       require: true
     },
     subreddit: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subreddit'
+      type: String
     },
     date_posted: {
       type: Date,
