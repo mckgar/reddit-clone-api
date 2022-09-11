@@ -473,7 +473,6 @@ exports.create_comment = [
       next();
       return;
     }
-
     try {
       const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
       if (subreddit) {
@@ -483,7 +482,7 @@ exports.create_comment = [
           return;
         }
         const post = await Post.findById(req.params.postid);
-        if (post) {
+        if (post && post.subreddit === req.params.subreddit) {
           const errors = validationResult(req);
           if (!errors.isEmpty()) {
             res.status(400).json(
@@ -506,6 +505,200 @@ exports.create_comment = [
           );
           res.sendStatus(201);
           return;
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err)
+    }
+  }
+];
+
+exports.update_comment = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  param('commentid')
+    .trim()
+    .escape(),
+  body('content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Comment is required')
+    .escape()
+    .isLength({ max: 10000 })
+    .withMessage('Comment is too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)
+      || !mongoose.Types.ObjectId.isValid(req.params.commentid)) {
+      next();
+      return;
+    }
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        if (subreddit.banned) {
+          res.sendStatus(403);
+          return;
+        }
+        const post = await Post.findById(req.params.postid);
+        if (post && post.subreddit === req.params.subreddit) {
+          const comment = await Comment.findById(req.params.commentid);
+          if (comment && comment.post_parent.toString() === post._id.toString()) {
+            if (req.user.username !== comment.author && !req.user.admin) {
+              res.sendStatus(403);
+              return;
+            }
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+              res.status(400).json(
+                {
+                  errors: errors.array()
+                }
+              );
+              return;
+            }
+            await comment.updateOne(
+              {
+                content: req.body.content,
+                date_edited: Date.now()
+              }
+            );
+            res.sendStatus(200);
+            return;
+          }
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+  }
+];
+
+exports.delete_comment = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  param('commentid')
+    .trim()
+    .escape(),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)
+      || !mongoose.Types.ObjectId.isValid(req.params.commentid)) {
+      next();
+      return;
+    }
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        const post = await Post.findById(req.params.postid);
+        if (post && post.subreddit === req.params.subreddit) {
+          const comment = await Comment.findById(req.params.commentid);
+          if (comment && comment.post_parent.toString() === post._id.toString()) {
+            const updates = {
+              author: '[Deleted]'
+            };
+            if (req.user.username === comment.author) {
+              updates.content = '[Deleted by user]';
+            } else if (subreddit.moderators.find(mod => { return mod === req.user.username })) {
+              updates.content = '[Removed by mods]';
+            } else if (req.user.admin) {
+              updates.content = '[Removed by admins]';
+            } else {
+              res.sendStatus(403);
+              return;
+            }
+            await User.findOneAndUpdate(
+              { username: comment.author },
+              { $pull: { comments: req.params.commentid } }
+            );
+            await comment.updateOne(updates);
+            res.sendStatus(200);
+            return;
+          }
+        }
+      }
+      next();
+      return;
+    } catch (err) {
+      next(err);
+    }
+    res.sendStatus(200);
+    return;
+  }
+];
+
+exports.create_comment_child = [
+  passport.authenticate('jwt', { session: false }),
+  param('subreddit')
+    .trim()
+    .escape(),
+  param('postid')
+    .trim()
+    .escape(),
+  param('commentid')
+    .trim()
+    .escape(),
+  body('content')
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Comment is required')
+    .escape()
+    .isLength({ max: 10000 })
+    .withMessage('Comment is too long'),
+  async (req, res, next) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.postid)
+      || !mongoose.Types.ObjectId.isValid(req.params.commentid)) {
+      next();
+      return;
+    }
+    try {
+      const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+      if (subreddit) {
+        if (subreddit.banned_users.find(user => { return user === req.user.username })
+          || subreddit.banned) {
+          res.sendStatus(403);
+          return;
+        }
+        const post = await Post.findById(req.params.postid);
+        if (post && post.subreddit === req.params.subreddit) {
+          const parent = await Comment.findById(req.params.commentid);
+          if (parent && parent.post_parent.toString() === req.params.postid) {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+              res.status(400).json(
+                {
+                  errors: errors.array()
+                }
+              );
+              return;
+            }
+            const comment = await new Comment(
+              {
+                content: req.body.content,
+                author: req.user.username,
+                post_parent: req.params.postid,
+                comment_parent: req.params.commentid
+              }
+            ).save();
+            await User.findOneAndUpdate(
+              { username: req.user.username },
+              { $push: { comments: comment._id } }
+            );
+            res.sendStatus(201);
+            return;
+          }
         }
       }
       next();
