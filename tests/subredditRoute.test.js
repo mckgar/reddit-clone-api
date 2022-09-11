@@ -22,6 +22,13 @@ let deletePost1;
 let deletePost2;
 let doesNotExistPost = new mongoose.Types.ObjectId();
 
+let stableComment;
+let updateComment;
+let deleteComment0;
+let deleteComment1;
+let deleteComment2;
+let doesnotexistComment = new mongoose.Types.ObjectId();
+
 let bigString = 'ahhhhhh';
 while (bigString.length < 50000) {
   bigString += bigString;
@@ -257,6 +264,77 @@ beforeAll(async () => {
     await Subreddit.findOneAndUpdate(
       { name: 'original' },
       { $push: { posts: deletePost2 } }
+    );
+
+    // Create comments for testing
+    const stableSubComment = await new Comment(
+      {
+        content: 'Stable comment content',
+        author: 'prolific',
+        post_parent: stablePost,
+        user_post: false
+      }
+    ).save();
+    stableComment = stableSubComment._id;
+    await User.findOneAndUpdate(
+      { username: 'prolific' },
+      { $push: { comments: stableComment } }
+    );
+
+    const updateSubComment = await new Comment(
+      {
+        content: 'Update comment content',
+        author: 'prolific',
+        post_parent: stablePost,
+        user_post: false
+      }
+    ).save();
+    updateComment = updateSubComment._id;
+    await User.findOneAndUpdate(
+      { username: 'prolific' },
+      { $push: { comments: updateComment } }
+    );
+
+    const deleteSubComment0 = await new Comment(
+      {
+        content: 'Update comment content',
+        author: 'prolific',
+        post_parent: stablePost,
+        user_post: false
+      }
+    ).save();
+    deleteComment0 = deleteSubComment0._id;
+    await User.findOneAndUpdate(
+      { username: 'prolific' },
+      { $push: { comments: deleteComment0 } }
+    );
+
+    const deleteSubComment1 = await new Comment(
+      {
+        content: 'Update comment content',
+        author: 'prolific',
+        post_parent: stablePost,
+        user_post: false
+      }
+    ).save();
+    deleteComment1 = deleteSubComment1._id;
+    await User.findOneAndUpdate(
+      { username: 'prolific' },
+      { $push: { comments: deleteComment1 } }
+    );
+
+    const deleteSubComment2 = await new Comment(
+      {
+        content: 'Update comment content',
+        author: 'prolific',
+        post_parent: stablePost,
+        user_post: false
+      }
+    ).save();
+    deleteComment2 = deleteSubComment2._id;
+    await User.findOneAndUpdate(
+      { username: 'prolific' },
+      { $push: { comments: deleteComment2 } }
     );
   } catch (err) {
     console.log(err);
@@ -1485,6 +1563,417 @@ describe('POST /r/:subreddit/:postid', () => {
       const response = await request(app)
         .post(`/api/v1/r/doesnotexist/${stablePost}`)
         .send({ content: 'who cares' })
+        .set('Authorization', `Bearer ${posterCred}`);
+      expect(response.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('PUT /r/:subreddit/:postid/:commentid', () => {
+  describe('Given valid subreddit', () => {
+    describe('Given valid credentials', () => {
+      describe('Subreddit is not banned', () => {
+        describe('Given valid postid', () => {
+          describe('Given valid commentid', () => {
+            describe('Given valid info', () => {
+              test('Responds with 200 status code', async () => {
+                const response = await request(app)
+                  .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                  .send({ content: 'Updated' })
+                  .set('Authorization', `Bearer ${posterCred}`);
+                expect(response.statusCode).toBe(200);
+              });
+
+              test('Comment content is successfully updated', async () => {
+                await request(app)
+                  .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                  .send({ content: 'Here we go again' })
+                  .set('Authorization', `Bearer ${posterCred}`);
+                const comment = await Comment.findById(updateComment);
+                expect(comment.content).toEqual('Here we go again');
+                expect(comment.date_created !== comment.date_edited).toBeTruthy();
+              });
+            });
+
+            describe('Given invalid info', () => {
+              test('Responds with 400 status code', async () => {
+                const data = [
+                  {},
+                  { content: null },
+                  { content: '' },
+                  { content: bigString }
+                ];
+                for (const body of data) {
+                  const response = await request(app)
+                    .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${posterCred}`);
+                  expect(response.statusCode).toBe(400);
+                }
+              });
+
+              test('Responds with json in content-type header', async () => {
+                const data = [
+                  {},
+                  { content: null },
+                  { content: '' },
+                  { content: bigString }
+                ];
+                for (const body of data) {
+                  const response = await request(app)
+                    .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${posterCred}`);
+                  expect(response.headers['content-type'])
+                    .toEqual(expect.stringContaining('json'));
+                }
+              });
+
+              test('Responds with error message', async () => {
+                const data = [
+                  {},
+                  { content: null },
+                  { content: '' },
+                  { content: bigString }
+                ];
+                for (const body of data) {
+                  const response = await request(app)
+                    .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${posterCred}`);
+                  expect(response.body.errors).toBeTruthy();
+                }
+              });
+            });
+          });
+
+          describe('Given invalid commentid', () => {
+            test('Responds with 404 status code', async () => {
+              const response = await request(app)
+                .put(`/api/v1/r/original/${stablePost}/${doesnotexistComment}`)
+                .send({ content: 'Updated' })
+                .set('Authorization', `Bearer ${posterCred}`);
+              expect(response.statusCode).toBe(404);
+            });
+          });
+        });
+
+        describe('Given invalid postid', () => {
+          test('Responds with 404 status code', async () => {
+            const response = await request(app)
+              .put(`/api/v1/r/original/${doesNotExistPost}/${updateComment}`)
+              .send({ content: 'Updated' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(404);
+          });
+        });
+      });
+
+      describe('Subreddit is banned', () => {
+        test('Responds with 403 status code', async () => {
+          const response = await request(app)
+            .put(`/api/v1/r/banhammered/${bannedPost}/${updateComment}`)
+            .send({ content: 'Updated' })
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response.statusCode).toBe(403);
+        });
+      });
+    });
+
+    describe('Given invalid credentials', () => {
+      test('Responds with 403 status code', async () => {
+        const response = await request(app)
+          .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+          .send({ content: 'Updated' })
+          .set('Authorization', `Bearer ${badCred}`);
+        expect(response.statusCode).toBe(403);
+      });
+    });
+
+    describe('Given no credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+          .send({ content: 'Updated' });
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+
+  describe('Given invalid subreddit', () => {
+    describe('Given credentials', () => {
+      test('Responds with 404 status code', async () => {
+        const response = await request(app)
+          .put(`/api/v1/r/doesnotexist/${stablePost}/${updateComment}`)
+          .send({ content: 'Updated' })
+          .set('Authorization', `Bearer ${adminCred}`);
+        expect(response.statusCode).toBe(404);
+      });
+    });
+
+    describe('Given credentials', () => {
+      test('Responds with 401 status code', async () => {
+        const response = await request(app)
+          .put(`/api/v1/r/doesnotexist/${stablePost}/${updateComment}`)
+          .send({ content: 'Updated' });
+        expect(response.statusCode).toBe(401);
+      });
+    });
+  });
+});
+
+describe('DELETE /r/:subreddit/:postid/:commentid', () => {
+  describe('Given valid subreddit', () => {
+    describe('Given valid postid', () => {
+      describe('Given valid commentid', () => {
+        describe('Given valid credentials', () => {
+          test('Responds with 200 status code', async () => {
+            const data = [
+              { comment: deleteComment0, cred: posterCred },
+              { comment: deleteComment1, cred: powerCred },
+              { comment: deleteComment2, cred: adminCred },
+            ];
+            for (const info of data) {
+              const response = await request(app)
+                .delete(`/api/v1/r/original/${stablePost}/${info.comment}`)
+                .set('Authorization', `Bearer ${info.cred}`);
+              expect(response.statusCode).toBe(200);
+            }
+          });
+
+          test('Comment data is deleted', async () => {
+            const data = [
+              { comment: deleteComment0, cred: posterCred, del: '[Deleted by user]' },
+              { comment: deleteComment1, cred: powerCred, del: '[Removed by mods]' },
+              { comment: deleteComment2, cred: adminCred, del: '[Removed by admins]' },
+            ];
+            for (const info of data) {
+              const response = await request(app)
+                .delete(`/api/v1/r/original/${stablePost}/${info.comment}`)
+                .set('Authorization', `Bearer ${info.cred}`);
+              const comment = await Comment.findById(info.comment);
+              expect(comment.author).toEqual('[Deleted]');
+              expect(comment.content).toEqual(info.del);
+            }
+          });
+
+          test('Comment is removed from user', async () => {
+            const data = [
+              { comment: deleteComment0, cred: posterCred, del: '[Deleted by user]' },
+              { comment: deleteComment1, cred: powerCred, del: '[Removed by mods]' },
+              { comment: deleteComment2, cred: adminCred, del: '[Removed by admins]' },
+            ];
+            for (const info of data) {
+              const response = await request(app)
+                .delete(`/api/v1/r/original/${stablePost}/${info.comment}`)
+                .set('Authorization', `Bearer ${info.cred}`);
+              const user = await User.findOne({ username: 'prolific' });
+              expect(user.comments.find(
+                comment => { return comment.toString() === info.comment.toString() }
+              ))
+                .toBeFalsy();
+            }
+          });
+        });
+
+        describe('Given invalid credentials', () => {
+          test('Responds with 403 status code', async () => {
+            const response = await request(app)
+              .delete(`/api/v1/r/original/${stablePost}/${deleteComment0}`)
+              .set('Authorization', `Bearer ${badCred}`);
+            expect(response.statusCode).toBe(403);
+          });
+        });
+
+        describe('Given no credentials', () => {
+          test('Responds with 401 status code', async () => {
+            const response = await request(app)
+              .delete(`/api/v1/r/original/${stablePost}/${deleteComment0}`);
+            expect(response.statusCode).toBe(401);
+          });
+        });
+      });
+
+      describe('Given invalid commentid', () => {
+        test('Responds with 404 status code', async () => {
+          const response = await request(app)
+            .delete(`/api/v1/r/original/${stablePost}/${doesnotexistComment}`)
+            .set('Authorization', `Bearer ${adminCred}`);
+          expect(response.statusCode).toBe(404);
+        });
+      });
+    });
+
+    describe('Given invalid postid', () => {
+      test('Responds with 404 status code', async () => {
+        const response = await request(app)
+          .delete(`/api/v1/r/original/${doesNotExistPost}/${deleteComment0}`)
+          .set('Authorization', `Bearer ${adminCred}`);
+        expect(response.statusCode).toBe(404);
+      });
+    });
+  });
+
+  describe('Given invalid subreddit', () => {
+    test('Responds with 404 status code', async () => {
+      const response = await request(app)
+        .delete(`/api/v1/r/doesnotexist/${stablePost}/${deleteComment0}`)
+        .set('Authorization', `Bearer ${adminCred}`);
+      expect(response.statusCode).toBe(404);
+    });
+  });
+});
+
+describe('POST /r/:subreddit/:postid/:commentid', () => {
+  describe('Given valid subreddit', () => {
+    describe('Subreddit is not banned', () => {
+      describe('Given valid postid', () => {
+        describe('Given valid commentid', () => {
+          describe('Given valid credentials', () => {
+            describe('Given valid info', () => {
+              test('Responds with 201 status code', async () => {
+                const response = await request(app)
+                  .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                  .send({ content: 'Child comment' })
+                  .set('Authorization', `Bearer ${posterCred}`);
+                expect(response.statusCode).toBe(201);
+              });
+
+              test('Comment is added to authors comments', async () => {
+                await request(app)
+                  .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                  .send({ content: 'Do you really want to go back in time?' })
+                  .set('Authorization', `Bearer ${posterCred}`);
+                const user = await User.findOne({ username: 'prolific' })
+                  .populate('comments');
+                expect(user.comments.find(comment => {
+                  return comment.content === 'Do you really want to go back in time?'
+                }))
+                  .toBeTruthy();
+              });
+            });
+
+            describe('Given invalid info', () => {
+              test('Responds with 400 status code', async () => {
+                const data = [
+                  {},
+                  { content: null },
+                  { content: '' },
+                  { content: bigString }
+                ];
+                for (const body of data) {
+                  const response = await request(app)
+                    .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${posterCred}`);
+                  expect(response.statusCode).toBe(400);
+                }
+              });
+
+              test('Responds with json in content-type header', async () => {
+                const data = [
+                  {},
+                  { content: null },
+                  { content: '' },
+                  { content: bigString }
+                ];
+                for (const body of data) {
+                  const response = await request(app)
+                    .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${posterCred}`);
+                  expect(response.headers['content-type'])
+                    .toEqual(expect.stringContaining('json'));
+                }
+              });
+
+              test('Responds with error message', async () => {
+                const data = [
+                  {},
+                  { content: null },
+                  { content: '' },
+                  { content: bigString }
+                ];
+                for (const body of data) {
+                  const response = await request(app)
+                    .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${posterCred}`);
+                  expect(response.body.errors).toBeTruthy();
+                }
+              });
+            });
+          });
+
+          describe('Given invalid credentials', () => {
+            test('Responds with 403 status code', async () => {
+              const response = await request(app)
+                .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                .send({ content: 'There\'s something inside you' })
+                .set('Authorization', `Bearer ${badCred}`);
+              expect(response.statusCode).toBe(403);
+            });
+          });
+
+          describe('Given no credentials', () => {
+            test('Responds with 403 status code', async () => {
+              const response = await request(app)
+                .post(`/api/v1/r/original/${stablePost}/${stableComment}`)
+                .send({ content: 'It\'s hard to explain' });
+              expect(response.statusCode).toBe(401);
+            });
+          });
+        });
+
+        describe('Given invalid commentid', () => {
+          test('Responds with 404 status code', async () => {
+            const response = await request(app)
+              .post(`/api/v1/r/original/${stablePost}/${doesnotexistComment}`)
+              .send({ content: 'There\'re talking about you boy' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(404);
+          });
+        });
+      });
+
+      describe('Given invalid postid', () => {
+        test('Responds with 404 status code', async () => {
+          const response = await request(app)
+            .post(`/api/v1/r/original/${doesNotExistPost}/${stableComment}`)
+            .send({ content: 'But you\'re still the same' })
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response.statusCode).toBe(404);
+        });
+      });
+    });
+
+    describe('Subreddit is banned', () => {
+      describe('Given credentials', () => {
+        test('Responds with 403 status code', async () => {
+          const response = await request(app)
+            .post(`/api/v1/r/banhammered/${bannedPost}/${stableComment}`)
+            .send({ content: 'Holding a palm full of miracles' })
+            .set('Authorization', `Bearer ${posterCred}`);
+          expect(response.statusCode).toBe(403);
+        });
+      });
+
+      describe('Given no credentials', () => {
+        test('Responds with 401 status code', async () => {
+          const response = await request(app)
+            .post(`/api/v1/r/banhammered/${bannedPost}/${stableComment}`)
+            .send({ content: 'Building a house on the moon' });
+          expect(response.statusCode).toBe(401);
+        });
+      });
+    });
+  });
+
+  describe('Given invalid subreddit', () => {
+    test('Responds with 404 status code', async () => {
+      const response = await request(app)
+        .post(`/api/v1/r/doesnotexist/${stableComment}/${stableComment}`)
+        .send({ content: 'You\'re getting colder' })
         .set('Authorization', `Bearer ${posterCred}`);
       expect(response.statusCode).toBe(404);
     });
