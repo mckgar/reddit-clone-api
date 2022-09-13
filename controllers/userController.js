@@ -200,6 +200,25 @@ exports.update_user = [
       }
     })
     .optional(),
+  body('follow')
+    .trim()
+    .escape()
+    .isLength({ max: 20 })
+    .withMessage('Invalid user')
+    .custom(async value => {
+      try {
+        const user = await User.findOne({ username: value });
+        if (user && !user.deleted) {
+          return true;
+        } else {
+          return Promise.reject('Invalid user');
+        }
+      } catch (err) {
+        console.log(err);
+        return Promise.reject('An error has occured');
+      }
+    })
+    .optional(),
   async (req, res, next) => {
     if ((req.user.username !== req.params.username && !req.user.admin)
       || (req.body.admin && !req.user.admin)
@@ -236,6 +255,29 @@ exports.update_user = [
           );
           await subreddit.updateOne(
             { $pull: { subscribers: req.params.username } }
+          );
+          res.sendStatus(200);
+          return;
+        }
+      }
+      if (req.body.follow && req.params.username === req.user.username) {
+        const follower = await User.findOne({ username: req.params.username });
+        const user = await User.findOne({ username: req.body.follow });
+        if (!follower.following.find(s => s === req.body.follow)) {
+          await follower.updateOne(
+            { $push: { following: req.body.follow } }
+          );
+          await user.updateOne(
+            { $push: { followers: req.params.username } }
+          );
+          res.sendStatus(200);
+          return;
+        } else {
+          await follower.updateOne(
+            { $pull: { following: req.body.follow } }
+          );
+          await user.updateOne(
+            { $pull: { followers: req.params.username } }
           );
           res.sendStatus(200);
           return;
