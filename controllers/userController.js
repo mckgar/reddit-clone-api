@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const mongoose = require('mongoose');
+const Subreddit = require('../models/subreddit');
 require('../passport');
 
 exports.create_user = [
@@ -180,6 +181,25 @@ exports.update_user = [
     .escape()
     .isBoolean()
     .optional(),
+  body('subscribe')
+    .trim()
+    .escape()
+    .isLength({ max: 20 })
+    .withMessage('Invalid subreddit')
+    .custom(async value => {
+      try {
+        const subreddit = await Subreddit.findOne({ name: value });
+        if (subreddit && !subreddit.banned) {
+          return true;
+        } else {
+          return Promise.reject('Invalid subreddit');
+        }
+      } catch (err) {
+        console.log(err);
+        return Promise.reject('An error has occured');
+      }
+    })
+    .optional(),
   async (req, res, next) => {
     if ((req.user.username !== req.params.username && !req.user.admin)
       || (req.body.admin && !req.user.admin)
@@ -198,6 +218,29 @@ exports.update_user = [
       return;
     }
     try {
+      if (req.body.subscribe && req.params.username === req.user.username) {
+        const subreddit = await Subreddit.findOne({ name: req.body.subscribe });
+        const user = await User.findOne({ username: req.params.username });
+        if (!user.subscriptions.find(s => s === req.body.subscribe)) {
+          await user.updateOne(
+            { $push: { subscriptions: req.body.subscribe } }
+          );
+          await subreddit.updateOne(
+            { $push: { subscribers: req.params.username } }
+          );
+          res.sendStatus(200);
+          return;
+        } else {
+          await user.updateOne(
+            { $pull: { subscriptions: req.body.subscribe } }
+          );
+          await subreddit.updateOne(
+            { $pull: { subscribers: req.params.username } }
+          );
+          res.sendStatus(200);
+          return;
+        }
+      }
       const updates = {};
       if (req.body.email) updates.email = req.body.email;
       if (req.body.password) {
