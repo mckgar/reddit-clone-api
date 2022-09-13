@@ -2,6 +2,7 @@ const request = require('supertest');
 const User = require('../models/user');
 const Post = require('../models/post');
 const Comment = require('../models/comment');
+const Subreddit = require('../models/subreddit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -252,6 +253,39 @@ beforeAll(async () => {
       stableUserPost,
       { $push: { comments: removeUserPostComment } }
     );
+
+    // Add subreddits
+    await new Subreddit(
+      {
+        name: 'original',
+        creator: 'powermod',
+        description: 'This is the first subreddit'
+      }
+    ).save();
+
+    await new Subreddit(
+      {
+        name: 'toBeRemoved',
+        creator: 'powermod',
+        description: 'This is the removed subreddit'
+      }
+    ).save();
+    await Subreddit.findOneAndUpdate(
+      { name: 'toBeRemoved' },
+      { $push: { subscribers: 'you_updater' } }
+    );
+    await User.findOneAndUpdate(
+      { username: 'you_updater' },
+      { $push: { subscriptions: 'toBeRemoved' } }
+    );
+
+    await new Subreddit(
+      {
+        name: 'toBeAdded',
+        creator: 'powermod',
+        description: 'This is the added subreddit'
+      }
+    ).save();
   } catch (err) {
     console.log(err);
   }
@@ -646,6 +680,63 @@ describe('PUT /user/:username', () => {
               .set('Authorization', `Bearer ${updateCred}`);
             expect(response.statusCode).toBe(403);
           }
+        });
+      });
+
+      describe('Updating user subscriptions', () => {
+        describe('Given valid subreddit', () => {
+          test('Responds with 200 status code', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ subscribe: 'original' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.statusCode).toBe(200);
+          });
+
+          test('Subreddits are added to user subscriptions', async () => {
+            await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ subscribe: 'toBeAdded' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            const user = await User.findOne({ username: 'you_updater' });
+            expect(user.subscriptions.find(sub => sub === 'toBeAdded')).toBeTruthy();
+          });
+
+          test('Subreddits are removed from user subscriptions', async () => {
+            await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ subscribe: 'toBeRemoved' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            const user = await User.findOne({ username: 'you_updater' });
+            expect(user.subscriptions.find(sub => sub === 'toBeRemoved')).toBeFalsy();
+          });
+        });
+
+        describe('Given invalid subreddit', () => {
+          test('Responds with 400 status code', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ subscribe: 'doesNotExist' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.statusCode).toBe(400);
+          });
+
+          test('Responds with json in content-type header', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ subscribe: 'doesNotExist' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.headers['content-type'])
+              .toEqual(expect.stringContaining('json'));
+          });
+
+          test('Responds with error message', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ subscribe: 'doesNotExist' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.body.errors).toBeTruthy();
+          });
         });
       });
     });
