@@ -739,6 +739,63 @@ describe('PUT /user/:username', () => {
           });
         });
       });
+
+      describe('Updating user followings', () => {
+        describe('Given valid user', () => {
+          test('Responds with 200 status code', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ follow: 'admin_god' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.statusCode).toBe(200);
+          });
+
+          test('Subreddits are added to user following', async () => {
+            await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ follow: 'prolific' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            const user = await User.findOne({ username: 'you_updater' });
+            expect(user.following.find(user => user === 'prolific')).toBeTruthy();
+          });
+
+          test('Subreddits are removed from user following', async () => {
+            await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ follow: 'prolific' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            const user = await User.findOne({ username: 'you_updater' });
+            expect(user.following.find(user => user === 'prolific')).toBeFalsy();
+          });
+        });
+
+        describe('Given invalid user', () => {
+          test('Responds with 400 status code', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ follow: 'doesNotExist' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.statusCode).toBe(400);
+          });
+
+          test('Responds with json in content-type header', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ follow: 'doesNotExist' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.headers['content-type'])
+              .toEqual(expect.stringContaining('json'));
+          });
+
+          test('Responds with error message', async () => {
+            const response = await request(app)
+              .put('/api/v1/user/you_updater')
+              .send({ follow: 'doesNotExist' })
+              .set('Authorization', `Bearer ${updateCred}`);
+            expect(response.body.errors).toBeTruthy();
+          });
+        });
+      });
     });
 
     describe('Given admin credentials', () => {
