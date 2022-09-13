@@ -357,13 +357,118 @@ exports.update_post = [
     .escape(),
   body('content')
     .trim()
+    .isLength({ min: 1 })
+    .withMessage('Content is required')
     .escape()
     .isLength({ max: 50000 })
-    .withMessage('Post content is too long'),
+    .withMessage('Post content is too long')
+    .optional(),
+  body('vote')
+    .trim()
+    .escape()
+    .custom(value => {
+      if (value !== 'upvote' && value !== 'downvote') {
+        throw new Error('Invalid vote operation');
+      } else {
+        return true;
+      }
+    })
+    .optional(),
   async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.postid)) {
       next();
       return;
+    }
+    if (req.body.vote) {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        if (errors.array().find(e => e.param === 'vote')) {
+          res.status(400).json(
+            {
+              errors: errors.array()
+            }
+          );
+          return;
+        }
+      }
+      try {
+        const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+        if (subreddit) {
+          if (subreddit.banned) {
+            res.sendStatus(403);
+            return;
+          }
+          const post = await Post.findById(req.params.postid);
+          if (post && post.subreddit === req.params.subreddit) {
+            const voter = await User.findOne({ username: req.user.username });
+            if (req.body.vote === 'upvote') {
+              const hasUpvoted = voter.upvoted_posts.find(p => p.toString() === req.params.postid.toString());
+              const hasDownvoted = voter.downvoted_posts.find(p => p.toString() === req.params.postid.toString());
+              if (hasUpvoted) {
+                await post.updateOne(
+                  { $inc: { score: -1 } }
+                );
+                await voter.updateOne(
+                  { $pull: { upvoted_posts: post._id } }
+                );
+              } else if (hasDownvoted) {
+                await post.updateOne(
+                  { $inc: { score: 2 } }
+                );
+                await voter.updateOne(
+                  { $pull: { downvoted_posts: post._id } }
+                );
+                await voter.updateOne(
+                  { $push: { upvoted_posts: post._id } }
+                );
+              } else {
+                await post.updateOne(
+                  { $inc: { score: 1 } }
+                );
+                await voter.updateOne(
+                  { $push: { upvoted_posts: post._id } }
+                );
+              }
+              res.sendStatus(200);
+              return;
+            } else {
+              const hasUpvoted = voter.upvoted_posts.find(p => p.toString() === req.params.postid.toString());
+              const hasDownvoted = voter.downvoted_posts.find(p => p.toString() === req.params.postid.toString());
+              if (hasDownvoted) {
+                await post.updateOne(
+                  { $inc: { score: 1 } }
+                );
+                await voter.updateOne(
+                  { $pull: { downvoted_posts: post._id } }
+                );
+              } else if (hasUpvoted) {
+                await post.updateOne(
+                  { $inc: { score: -2 } }
+                );
+                await voter.updateOne(
+                  { $pull: { upvoted_posts: post._id } }
+                );
+                await voter.updateOne(
+                  { $push: { downvoted_posts: post._id } }
+                );
+              } else {
+                await post.updateOne(
+                  { $inc: { score: -1 } }
+                );
+                await voter.updateOne(
+                  { $push: { downvoted_posts: post._id } }
+                );
+              }
+              res.sendStatus(200);
+              return;
+            }
+          }
+        }
+        next();
+        return;
+      } catch (err) {
+        next(err);
+      }
     }
     try {
       const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
@@ -533,11 +638,116 @@ exports.update_comment = [
     .escape()
     .isLength({ max: 10000 })
     .withMessage('Comment is too long'),
+  body('vote')
+    .trim()
+    .escape()
+    .custom(value => {
+      if (value !== 'upvote' && value !== 'downvote') {
+        throw new Error('Invalid vote operation');
+      } else {
+        return true;
+      }
+    })
+    .optional(),
   async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.postid)
       || !mongoose.Types.ObjectId.isValid(req.params.commentid)) {
       next();
       return;
+    }
+    if (req.body.vote) {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        if (errors.array().find(e => e.param === 'vote')) {
+          res.status(400).json(
+            {
+              errors: errors.array()
+            }
+          );
+          return;
+        }
+      }
+      try {
+        const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
+        if (subreddit) {
+          if (subreddit.banned) {
+            res.sendStatus(403);
+            return;
+          }
+          const post = await Post.findById(req.params.postid);
+          if (post && post.subreddit === req.params.subreddit) {
+            const comment = await Comment.findById(req.params.commentid);
+            if (comment && comment.post_parent.toString() === req.params.postid) {
+              const voter = await User.findOne({ username: req.user.username });
+              if (req.body.vote === 'upvote') {
+                const hasUpvoted = voter.upvoted_comments.find(p => p.toString() === req.params.commentid.toString());
+                const hasDownvoted = voter.downvoted_comments.find(p => p.toString() === req.params.commentid.toString());
+                if (hasUpvoted) {
+                  await comment.updateOne(
+                    { $inc: { score: -1 } }
+                  );
+                  await voter.updateOne(
+                    { $pull: { upvoted_posts: comment._id } }
+                  );
+                } else if (hasDownvoted) {
+                  await comment.updateOne(
+                    { $inc: { score: 2 } }
+                  );
+                  await voter.updateOne(
+                    { $pull: { downvoted_comments: comment._id } }
+                  );
+                  await voter.updateOne(
+                    { $push: { upvoted_comments: comment._id } }
+                  );
+                } else {
+                  await comment.updateOne(
+                    { $inc: { score: 1 } }
+                  );
+                  await voter.updateOne(
+                    { $push: { upvoted_comments: comment._id } }
+                  );
+                }
+                res.sendStatus(200);
+                return;
+              } else {
+                const hasUpvoted = voter.upvoted_comments.find(p => p.toString() === req.params.commentid.toString());
+                const hasDownvoted = voter.downvoted_comments.find(p => p.toString() === req.params.commentid.toString());
+                if (hasDownvoted) {
+                  await comment.updateOne(
+                    { $inc: { score: 1 } }
+                  );
+                  await voter.updateOne(
+                    { $pull: { downvoted_comments: comment._id } }
+                  );
+                } else if (hasUpvoted) {
+                  await comment.updateOne(
+                    { $inc: { score: -2 } }
+                  );
+                  await voter.updateOne(
+                    { $pull: { upvoted_comments: comment._id } }
+                  );
+                  await voter.updateOne(
+                    { $push: { downvoted_comments: comment._id } }
+                  );
+                } else {
+                  await comment.updateOne(
+                    { $inc: { score: -1 } }
+                  );
+                  await voter.updateOne(
+                    { $push: { downvoted_comments: comment._id } }
+                  );
+                }
+                res.sendStatus(200);
+                return;
+              }
+            }
+          }
+        }
+        next();
+        return;
+      } catch (err) {
+        next(err);
+      }
     }
     try {
       const subreddit = await Subreddit.findOne({ name: req.params.subreddit });
