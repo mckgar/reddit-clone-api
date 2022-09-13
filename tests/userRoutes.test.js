@@ -1102,7 +1102,66 @@ describe('PUT /user/:username/:postid', () => {
             ]);
           });
         });
+
+        describe('Given valid vote info', () => {
+          test('Responds with 200 status code', async () => {
+            const data = [
+              { vote: 'upvote' },
+              { vote: 'downvote' }
+            ]
+            for (const body of data) {
+              const response = await request(app)
+                .put(`/api/v1/user/prolific/${updateUserPost}`)
+                .send(body)
+                .set('Authorization', `Bearer ${posterCred}`);
+              expect(response.statusCode).toBe(200);
+            }
+          });
+
+          test('Comment score is correctly changed', async () => {
+            const data = [
+              { body: { vote: 'upvote' }, score: 1 },
+              { body: { vote: 'downvote' }, score: -1 }
+            ]
+            for (const info of data) {
+              await request(app)
+                .put(`/api/v1/user/prolific/${updateUserPost}`)
+                .send(info.body)
+                .set('Authorization', `Bearer ${posterCred}`);
+              const post = await Post.findById(updateUserPost);
+              expect(post.score).toBe(info.score);
+            }
+          });
+        });
+
+        describe('Given invalid vote info', () => {
+          test('Responds with 400 status code', async () => {
+            const response = await request(app)
+              .put(`/api/v1/user/prolific/${updateUserPost}`)
+              .send({ vote: 'pwned' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.statusCode).toBe(400);
+          });
+
+          test('Responds with json in content-type header', async () => {
+            const response = await request(app)
+              .put(`/api/v1/user/prolific/${updateUserPost}`)
+              .send({ vote: 'pwned' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.headers['content-type'])
+              .toEqual(expect.stringContaining('json'));
+          });
+
+          test('Responds with error message', async () => {
+            const response = await request(app)
+              .put(`/api/v1/user/prolific/${updateUserPost}`)
+              .send({ vote: 'pwned' })
+              .set('Authorization', `Bearer ${posterCred}`);
+            expect(response.body.errors).toBeTruthy();
+          });
+        });
       });
+
       describe('Given invalid user credentials', () => {
         test('Responds with 403 status code', async () => {
           const response = await request(app)
@@ -1376,6 +1435,64 @@ describe('PUT /user/:username/:postid/:commentid', () => {
                   .set('Authorization', `Bearer ${posterCred}`);
                 expect(response.statusCode).toBe(400);
               }
+            });
+          });
+
+          describe('Given valid vote info', () => {
+            test('Responds with 200 status code', async () => {
+              const data = [
+                { vote: 'upvote' },
+                { vote: 'downvote' }
+              ]
+              for (const body of data) {
+                const response = await request(app)
+                  .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                  .send(body)
+                  .set('Authorization', `Bearer ${updateCred}`);
+                expect(response.statusCode).toBe(200);
+              }
+            });
+
+            test('Comment score is correctly changed', async () => {
+              const data = [
+                { body: { vote: 'upvote' }, score: 1 },
+                { body: { vote: 'downvote' }, score: -1 }
+              ]
+              for (const info of data) {
+                await request(app)
+                  .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                  .send(info.body)
+                  .set('Authorization', `Bearer ${updateCred}`);
+                const comment = await Comment.findById(updateUserPostComment);
+                expect(comment.score).toBe(info.score);
+              }
+            });
+          });
+
+          describe('Given invalid vote info', () => {
+            test('Responds with 400 status code', async () => {
+              const response = await request(app)
+                .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                .send({ vote: 'pwned' })
+                .set('Authorization', `Bearer ${updateCred}`);
+              expect(response.statusCode).toBe(400);
+            });
+
+            test('Responds with json in content-type header', async () => {
+              const response = await request(app)
+                .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                .send({ vote: 'pwned' })
+                .set('Authorization', `Bearer ${updateCred}`);
+              expect(response.headers['content-type'])
+                .toEqual(expect.stringContaining('json'));
+            });
+
+            test('Responds with error message', async () => {
+              const response = await request(app)
+                .put(`/api/v1/user/prolific/${stableUserPost}/${updateUserPostComment}`)
+                .send({ vote: 'pwned' })
+                .set('Authorization', `Bearer ${updateCred}`);
+              expect(response.body.errors).toBeTruthy();
             });
           });
         });

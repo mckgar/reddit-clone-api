@@ -1294,6 +1294,64 @@ describe('PUT /r/:subreddit/:postid', () => {
               }
             });
           });
+
+          describe('Given valid vote info', () => {
+            test('Responds with 200 status code', async () => {
+              const data = [
+                { vote: 'upvote' },
+                { vote: 'downvote' }
+              ]
+              for (const body of data) {
+                const response = await request(app)
+                  .put(`/api/v1/r/original/${updatePost}`)
+                  .send(body)
+                  .set('Authorization', `Bearer ${powerCred}`);
+                expect(response.statusCode).toBe(200);
+              }
+            });
+
+            test('Post score is correctly changed', async () => {
+              const data = [
+                { body: { vote: 'upvote' }, score: 1 },
+                { body: { vote: 'downvote' }, score: -1 }
+              ]
+              for (const info of data) {
+                await request(app)
+                  .put(`/api/v1/r/original/${updatePost}`)
+                  .send(info.body)
+                  .set('Authorization', `Bearer ${powerCred}`);
+                const post = await Post.findById(updatePost);
+                expect(post.score).toBe(info.score);
+              }
+            });
+          });
+
+          describe('Given invalid vote info', () => {
+            test('Responds with 400 status code', async () => {
+              const response = await request(app)
+                .put(`/api/v1/r/original/${updatePost}`)
+                .send({ vote: 'pwned' })
+                .set('Authorization', `Bearer ${powerCred}`);
+              expect(response.statusCode).toBe(400);
+            });
+
+            test('Responds with json in content-type header', async () => {
+              const response = await request(app)
+                .put(`/api/v1/r/original/${updatePost}`)
+                .send({ vote: 'pwned' })
+                .set('Authorization', `Bearer ${powerCred}`);
+              expect(response.headers['content-type'])
+                .toEqual(expect.stringContaining('json'));
+            });
+
+            test('Responds with error message', async () => {
+              const response = await request(app)
+                .put(`/api/v1/r/original/${updatePost}`)
+                .send({ vote: 'pwned' })
+                .set('Authorization', `Bearer ${powerCred}`);
+              expect(response.body.errors).toBeTruthy();
+            });
+          });
         });
 
         describe('Given invalid postid', () => {
@@ -1643,6 +1701,64 @@ describe('PUT /r/:subreddit/:postid/:commentid', () => {
                     .set('Authorization', `Bearer ${posterCred}`);
                   expect(response.body.errors).toBeTruthy();
                 }
+              });
+            });
+
+            describe('Given valid vote info', () => {
+              test('Responds with 200 status code', async () => {
+                const data = [
+                  { vote: 'upvote' },
+                  { vote: 'downvote' }
+                ]
+                for (const body of data) {
+                  const response = await request(app)
+                    .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                    .send(body)
+                    .set('Authorization', `Bearer ${powerCred}`);
+                  expect(response.statusCode).toBe(200);
+                }
+              });
+  
+              test('Comment score is correctly changed', async () => {
+                const data = [
+                  { body: { vote: 'upvote' }, score: 1 },
+                  { body: { vote: 'downvote' }, score: -1 }
+                ]
+                for (const info of data) {
+                  await request(app)
+                    .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                    .send(info.body)
+                    .set('Authorization', `Bearer ${powerCred}`);
+                  const comment = await Comment.findById(updateComment);
+                  expect(comment.score).toBe(info.score);
+                }
+              });
+            });
+  
+            describe('Given invalid vote info', () => {
+              test('Responds with 400 status code', async () => {
+                const response = await request(app)
+                  .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                  .send({ vote: 'pwned' })
+                  .set('Authorization', `Bearer ${powerCred}`);
+                expect(response.statusCode).toBe(400);
+              });
+  
+              test('Responds with json in content-type header', async () => {
+                const response = await request(app)
+                  .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                  .send({ vote: 'pwned' })
+                  .set('Authorization', `Bearer ${powerCred}`);
+                expect(response.headers['content-type'])
+                  .toEqual(expect.stringContaining('json'));
+              });
+  
+              test('Responds with error message', async () => {
+                const response = await request(app)
+                  .put(`/api/v1/r/original/${stablePost}/${updateComment}`)
+                  .send({ vote: 'pwned' })
+                  .set('Authorization', `Bearer ${powerCred}`);
+                expect(response.body.errors).toBeTruthy();
               });
             });
           });
