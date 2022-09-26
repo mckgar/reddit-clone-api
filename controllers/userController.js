@@ -312,7 +312,9 @@ exports.create_user_post = [
     .trim()
     .isLength({ min: 1 })
     .withMessage('Title is required')
-    .escape(),
+    .escape()
+    .isLength({ max: 300 })
+    .withMessage('Title is too long'),
   body('content')
     .trim()
     .escape()
