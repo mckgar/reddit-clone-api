@@ -14,6 +14,7 @@ exports.create_user = [
     .trim()
     .isLength({ min: 1 })
     .withMessage('Username is required')
+    .escape()
     .custom(async value => {
       try {
         const search = await User.find({ username: value });
@@ -23,8 +24,7 @@ exports.create_user = [
       } catch (err) {
         return Promise.reject('An error has occured');
       }
-    })
-    .escape(),
+    }),
   body('password')
     .trim()
     .isLength({ min: 8 })
